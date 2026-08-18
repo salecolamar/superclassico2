@@ -4,7 +4,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import {
   Home, Users, Calendar, Wallet, User, Shield, Plus, X, Check,
   ChevronLeft, ChevronRight, Search, Trash2, Pencil, Phone,
-  CheckCircle2, Circle, Trophy, Lock, QrCode, Copy, LogOut
+  CheckCircle2, Circle, Lock, QrCode, Copy, LogOut, Mail
 } from 'lucide-react';
 
 /* ---------------------------------------------------------
@@ -64,50 +64,85 @@ const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, config: { mont
 const STORAGE_KEY = 'furao-app-data';
 
 /* ---------------------------------------------------------
-   EMBLEMAS ORIGINAIS (desenho próprio, não são os escudos
-   oficiais dos clubes — apenas inspirados nas cores de cada time)
+   SELOS DE TIME — sigla em bloco de cor (sem escudo)
 --------------------------------------------------------- */
-const SHIELD_PATH = 'M50,4 L91,17 L91,52 C91,83 73,102 50,113 C27,102 9,83 9,52 L9,17 Z';
-
-function StarMark({ fill }) {
-  return <polygon points="50,15 53,23 62,23 55,28.5 57.5,37 50,32 42.5,37 45,28.5 38,23 47,23" fill={fill} />;
-}
-
-function VascoEmblem({ size = 40 }) {
+function TeamBadge({ team, size = 40 }) {
+  const isVasco = team === 'Vasco';
+  const label = isVasco ? 'VAS' : 'FLA';
+  const bg = isVasco ? C.vascoBlack : C.flaRed;
+  const textColor = isVasco ? C.vascoWhite : '#FFFFFF';
   return (
-    <svg width={size} height={size * 1.13} viewBox="0 0 100 113" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <clipPath id="vascoShieldClip"><path d={SHIELD_PATH} /></clipPath>
-      </defs>
-      <g clipPath="url(#vascoShieldClip)">
-        <rect width="100" height="113" fill="#0E0E10" />
-        <path d="M-10,48 L66,-8 L88,3 L12,62 Z" fill="#F5F3EE" />
-      </g>
-      <path d={SHIELD_PATH} fill="none" stroke="#FFC53D" strokeWidth="3.5" />
-      <StarMark fill="#FFC53D" />
-      <text x="50" y="90" fontFamily="'Rajdhani',sans-serif" fontWeight="700" fontSize="36" fill="#FFC53D" textAnchor="middle">V</text>
-    </svg>
+    <div style={{
+      width: size * 1.7, height: size * 0.74, borderRadius: size * 0.16,
+      background: bg, border: `1.5px solid ${C.gold}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: size * 0.4, color: textColor, letterSpacing: 1 }}>{label}</span>
+    </div>
   );
 }
-
-function FlamengoEmblem({ size = 40 }) {
-  return (
-    <svg width={size} height={size * 1.13} viewBox="0 0 100 113" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <clipPath id="flaShieldClip"><path d={SHIELD_PATH} /></clipPath>
-      </defs>
-      <g clipPath="url(#flaShieldClip)">
-        <rect width="100" height="56" fill="#141414" />
-        <rect y="56" width="100" height="57" fill="#E2231A" />
-      </g>
-      <path d={SHIELD_PATH} fill="none" stroke="#FFC53D" strokeWidth="3.5" />
-      <StarMark fill="#FFC53D" />
-      <text x="50" y="90" fontFamily="'Rajdhani',sans-serif" fontWeight="700" fontSize="36" fill="#FFFFFF" textAnchor="middle">F</text>
-    </svg>
-  );
-}
+function VascoEmblem({ size = 40 }) { return <TeamBadge team="Vasco" size={size} />; }
+function FlamengoEmblem({ size = 40 }) { return <TeamBadge team="Flamengo" size={size} />; }
 
 const TEAM_EMBLEM = { Vasco: VascoEmblem, Flamengo: FlamengoEmblem };
+
+/* ---------------------------------------------------------
+   LOGO SUPER CLÁSSICO (desenho original — escudo dividido nas
+   cores dos dois times + faixa com o nome; não reproduz os
+   escudos oficiais dos clubes)
+--------------------------------------------------------- */
+const LOGO_SHIELD_POINTS = '240,70 390,106 390,196 367.5,250 330,310 240,370 150,310 112.5,250 90,196 90,106';
+const LOGO_STAR_POINTS = '240,6 246.4,23.2 264.7,24 250.4,35.4 255.3,53 240,42.9 224.7,53 229.6,35.4 215.3,24 233.6,23.2';
+
+function SuperClassicoMark({ size = 60 }) {
+  return (
+    <svg width={size} height={size * (400 / 480)} viewBox="0 0 480 400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="scShieldClip"><polygon points={LOGO_SHIELD_POINTS} /></clipPath>
+      </defs>
+      <g clipPath="url(#scShieldClip)">
+        <rect x="90" y="60" width="150" height="320" fill="#0E0E10" />
+        <polygon points="70,169 246,56 266,80 92,208" fill="#F5F3EE" />
+        <rect x="240" y="60" width="150" height="320" fill="#0E0E10" />
+        <rect x="240" y="106" width="150" height="22.5" fill="#E2231A" />
+        <rect x="240" y="151" width="150" height="22.5" fill="#E2231A" />
+        <rect x="240" y="196" width="150" height="22.5" fill="#E2231A" />
+        <rect x="240" y="241" width="150" height="22.5" fill="#E2231A" />
+      </g>
+      <line x1="240" y1="70" x2="240" y2="370" stroke="#FFC53D" strokeWidth="4" />
+      <polygon points={LOGO_SHIELD_POINTS} fill="none" stroke="#FFC53D" strokeWidth="9" strokeLinejoin="round" />
+      <polygon points={LOGO_STAR_POINTS} fill="#FFC53D" />
+    </svg>
+  );
+}
+
+function SuperClassicoLogo({ size = 220 }) {
+  return (
+    <svg width={size} height={size * (430 / 480)} viewBox="0 0 480 430" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="scShieldClipFull"><polygon points={LOGO_SHIELD_POINTS} /></clipPath>
+      </defs>
+      <g clipPath="url(#scShieldClipFull)">
+        <rect x="90" y="60" width="150" height="320" fill="#0E0E10" />
+        <polygon points="70,169 246,56 266,80 92,208" fill="#F5F3EE" />
+        <rect x="240" y="60" width="150" height="320" fill="#0E0E10" />
+        <rect x="240" y="106" width="150" height="22.5" fill="#E2231A" />
+        <rect x="240" y="151" width="150" height="22.5" fill="#E2231A" />
+        <rect x="240" y="196" width="150" height="22.5" fill="#E2231A" />
+        <rect x="240" y="241" width="150" height="22.5" fill="#E2231A" />
+      </g>
+      <line x1="240" y1="70" x2="240" y2="370" stroke="#FFC53D" strokeWidth="4" />
+      <polygon points={LOGO_SHIELD_POINTS} fill="none" stroke="#FFC53D" strokeWidth="9" strokeLinejoin="round" />
+      <polygon points={LOGO_STAR_POINTS} fill="#FFC53D" />
+
+      <polygon points="34,323 60,323 60,397 34,397 52,360" fill="#123A2C" stroke="#FFC53D" strokeWidth="2" />
+      <polygon points="446,323 420,323 420,397 446,397 428,360" fill="#123A2C" stroke="#FFC53D" strokeWidth="2" />
+      <polygon points="60,315 420,315 402,360 420,405 60,405 78,360" fill="#123A2C" stroke="#FFC53D" strokeWidth="3" />
+      <text x="240" y="345" fontFamily="'Rajdhani',sans-serif" fontWeight="700" fontSize="34" fill="#FFC53D" textAnchor="middle" letterSpacing="2">SUPER</text>
+      <text x="240" y="385" fontFamily="'Rajdhani',sans-serif" fontWeight="700" fontSize="40" fill="#FFC53D" textAnchor="middle" letterSpacing="1">CLÁSSICO</text>
+    </svg>
+  );
+}
 const PIX_KEY_RAW = '21999983445';
 
 /* ---------------------------------------------------------
@@ -276,6 +311,7 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name || '');
   const [phone, setPhone] = useState(initial?.phone || '');
+  const [email, setEmail] = useState(initial?.email || '');
   const [team, setTeam] = useState(initial?.team || 'Vasco');
   const [position, setPosition] = useState(initial?.position || 'Meia');
   const [username, setUsername] = useState(initial?.username || '');
@@ -291,6 +327,7 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
 
   async function submit() {
     if (!name.trim()) { setError('Digite o nome do jogador.'); return; }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Digite um e-mail válido.'); return; }
     const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '');
     if (!cleanUsername) { setError('Escolha um nome de usuário.'); return; }
     const taken = players.some((p) => p.username?.toLowerCase() === cleanUsername);
@@ -326,7 +363,7 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
     }
     setSaving(false);
     onSave({
-      name: name.trim(), phone: phone.trim(), team, position,
+      name: name.trim(), phone: phone.trim(), email: email.trim(), team, position,
       username: cleanUsername, passwordHash, salt,
       isAdmin, wantsAdminPin: pin, newPin,
     });
@@ -339,6 +376,9 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
       </Field>
       <Field label="Telefone (opcional)">
         <input style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(21) 9xxxx-xxxx" />
+      </Field>
+      <Field label="E-mail (opcional)">
+        <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seuemail@exemplo.com" autoCapitalize="none" />
       </Field>
       <Field label="Time">
         <div style={{ display: 'flex', gap: 10 }}>
@@ -536,7 +576,7 @@ function Header({ currentUser, onLogout }) {
     <div style={{ padding: 'calc(18px + env(safe-area-inset-top)) 18px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Trophy size={18} color={C.gold} />
+          <SuperClassicoMark size={26} />
           <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 21, color: C.chalk, letterSpacing: 0.5 }}>SUPER CLÁSSICO</span>
         </div>
         <div style={{ fontSize: 12, color: C.chalkDim, marginTop: -2 }}>Quarta-feira · Campo do Furão, Olaria - RJ</div>
@@ -680,7 +720,7 @@ export default function App() {
 
   function saveNewPlayer(form) {
     const player = {
-      id: uid(), name: form.name, phone: form.phone, team: form.team, position: form.position,
+      id: uid(), name: form.name, phone: form.phone, email: form.email, team: form.team, position: form.position,
       username: form.username, passwordHash: form.passwordHash, salt: form.salt,
       isAdmin: form.isAdmin === true, createdAt: new Date().toISOString(),
     };
@@ -697,7 +737,7 @@ export default function App() {
 
   function saveEditedPlayer(form) {
     const players = data.players.map((p) => p.id === editingPlayer.id ? {
-      ...p, name: form.name, phone: form.phone, team: form.team, position: form.position,
+      ...p, name: form.name, phone: form.phone, email: form.email, team: form.team, position: form.position,
       username: form.username, passwordHash: form.passwordHash, salt: form.salt,
     } : p);
     persist({ ...data, players });
@@ -929,10 +969,9 @@ function LoginScreen({ players, onLogin, onNew }) {
 
   return (
     <div style={{ padding: 'calc(28px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ textAlign: 'center', marginBottom: 22 }}>
-        <Trophy size={30} color={C.gold} style={{ marginBottom: 6 }} />
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: C.chalk, letterSpacing: 1 }}>SUPER CLÁSSICO</div>
-        <div style={{ fontSize: 13, color: C.chalkDim }}>Quarta-feira · Campo do Furão, Olaria - RJ</div>
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        <SuperClassicoLogo size={200} />
+        <div style={{ fontSize: 13, color: C.chalkDim, marginTop: 4 }}>Quarta-feira · Campo do Furão, Olaria - RJ</div>
       </div>
 
       {players.length > 0 && (
@@ -1072,8 +1111,13 @@ function PlayerDetail({ player, isAdmin, onEdit, onDelete }) {
         </div>
       </div>
       {player.phone && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.chalk, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.chalk, marginBottom: 8 }}>
           <Phone size={14} color={C.chalkDim} /> {player.phone}
+        </div>
+      )}
+      {player.email && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.chalk, marginBottom: 10 }}>
+          <Mail size={14} color={C.chalkDim} /> {player.email}
         </div>
       )}
       <div style={{ fontSize: 12, color: C.chalkDim, marginBottom: 16 }}>
@@ -1292,6 +1336,7 @@ function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onShow
           {isAdmin && <Shield size={15} color={C.gold} />}
         </div>
         <div style={{ fontSize: 12, color: C.chalkDim }}>@{currentUser.username} · {currentUser.position} · {currentUser.team}{isAdmin ? ' · Administrador' : ''}</div>
+        {currentUser.email && <div style={{ fontSize: 11, color: C.chalkDim, marginTop: 2 }}>{currentUser.email}</div>}
       </div>
 
       <button onClick={onEdit} style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.05)', color: C.chalk, marginBottom: 10, cursor: 'pointer' }}>
