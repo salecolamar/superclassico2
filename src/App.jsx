@@ -5,7 +5,8 @@ import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   Home, Users, Calendar, Wallet, User, Shield, Plus, X, Check,
   ChevronLeft, ChevronRight, Search, Trash2, Pencil, Phone,
-  CheckCircle2, Circle, Lock, QrCode, Copy, LogOut, Mail, Clock, Trophy
+  CheckCircle2, Circle, Lock, QrCode, Copy, LogOut, Mail, Clock, Trophy,
+  Download, Smartphone, Share2
 } from 'lucide-react';
 
 /* ---------------------------------------------------------
@@ -283,6 +284,124 @@ const inputStyle = {
   border: `1px solid ${C.line}`, borderRadius: 12, padding: '11px 12px',
   color: C.chalk, fontSize: 15, fontFamily: "'Inter',sans-serif", outline: 'none',
 };
+
+/* ---------------------------------------------------------
+   INSTALAR NO CELULAR (PWA "Adicionar à Tela de Início")
+--------------------------------------------------------- */
+function useInstallPrompt() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      window.navigator.standalone === true;
+    setIsStandalone(!!standalone);
+
+    const ua = window.navigator.userAgent || '';
+    setIsIOS(/iphone|ipad|ipod/i.test(ua) && !window.MSStream);
+
+    function onBeforeInstall(e) {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    }
+    function onInstalled() {
+      setDeferredPrompt(null);
+      setIsStandalone(true);
+    }
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  async function promptInstall() {
+    if (!deferredPrompt) return false;
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice.catch(() => null);
+    setDeferredPrompt(null);
+    return choice?.outcome === 'accepted';
+  }
+
+  return { canInstall: !!deferredPrompt, promptInstall, isIOS, isStandalone };
+}
+
+function IOSInstallHelp() {
+  return (
+    <div style={{ fontSize: 13.5, color: C.chalk, lineHeight: 1.7 }}>
+      <div style={{ marginBottom: 10 }}>No iPhone/iPad a instalação é feita direto pelo Safari:</div>
+      <ol style={{ paddingLeft: 20, margin: '0 0 14px' }}>
+        <li>Toque no ícone de <b>Compartilhar</b> <Share2 size={13} style={{ verticalAlign: 'middle' }} /> na barra do Safari.</li>
+        <li>Escolha <b>"Adicionar à Tela de Início"</b>.</li>
+        <li>Toque em <b>"Adicionar"</b>, no canto superior direito.</li>
+      </ol>
+      <div style={{ fontSize: 11.5, color: C.chalkDim }}>
+        Precisa ser pelo Safari — no iPhone, Chrome e outros navegadores não têm essa opção.
+      </div>
+    </div>
+  );
+}
+
+function InstallAppButton({ variant = 'menu' }) {
+  const { canInstall, promptInstall, isIOS, isStandalone } = useInstallPrompt();
+  const [showIOSHelp, setShowIOSHelp] = useState(false);
+
+  if (isStandalone) return null; // já instalado
+  if (!canInstall && !isIOS) return null; // navegador não suporta instalação (ex: desktop sem suporte)
+
+  async function handleClick() {
+    if (canInstall) await promptInstall();
+    else if (isIOS) setShowIOSHelp(true);
+  }
+
+  if (variant === 'banner') {
+    return (
+      <>
+        <button
+          onClick={handleClick}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%', background: 'rgba(23,232,143,0.08)', border: `1px solid ${C.greenDim}`,
+            borderRadius: 10, padding: '12px 14px', color: C.green,
+            fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13.5,
+            letterSpacing: 0.3, cursor: 'pointer', marginTop: 14, boxSizing: 'border-box',
+          }}
+        >
+          <Smartphone size={15} /> Instalar app no celular
+        </button>
+        {showIOSHelp && (
+          <Modal title="Adicionar à Tela de Início" onClose={() => setShowIOSHelp(false)}>
+            <IOSInstallHelp />
+          </Modal>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        style={{
+          width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '13px 14px', borderRadius: 12, border: `1px solid ${C.line}`,
+          background: 'rgba(245,241,230,0.05)', color: C.chalk, marginBottom: 10, cursor: 'pointer',
+        }}
+      >
+        <Download size={16} color={C.chalkDim} /> Instalar app no celular
+      </button>
+      {showIOSHelp && (
+        <Modal title="Adicionar à Tela de Início" onClose={() => setShowIOSHelp(false)}>
+          <IOSInstallHelp />
+        </Modal>
+      )}
+    </>
+  );
+}
 
 /* ---------------------------------------------------------
    PLAYER FORM (create / edit) — inclui usuário e senha
@@ -1288,6 +1407,8 @@ function LoginScreen({ players, results, onLogin, onNew }) {
       <button onClick={onNew} style={{ marginTop: 16, background: 'none', border: `1px solid ${C.line}`, borderRadius: 10, padding: '13px 16px', color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
         + Cadastrar novo jogador
       </button>
+
+      <InstallAppButton variant="banner" />
     </div>
   );
 }
@@ -1957,6 +2078,8 @@ function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onPixS
       <button onClick={onShowPix} style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.05)', color: C.chalk, marginBottom: 10, cursor: 'pointer' }}>
         <QrCode size={16} color={C.chalkDim} /> Mostrar QR Code do PIX
       </button>
+
+      <InstallAppButton variant="menu" />
 
       {isAdmin && (
         <button onClick={onSettings} style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.05)', color: C.chalk, marginBottom: 10, cursor: 'pointer' }}>
