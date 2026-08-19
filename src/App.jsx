@@ -1225,6 +1225,7 @@ export default function App() {
   const attendanceArr = data.attendance[nextMatchKey] || [];
   const confirmedVasco = data.players.filter((p) => p.team === 'Vasco' && attendanceArr.includes(p.id));
   const confirmedFla = data.players.filter((p) => p.team === 'Flamengo' && attendanceArr.includes(p.id));
+  const confirmedResenha = data.players.filter((p) => p.position === 'Resenha' && attendanceArr.includes(p.id));
   // cargo Resenha não entra na lista de jogadores
   const filteredPlayers = data.players.filter((p) => p.position !== 'Resenha' && p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -1277,7 +1278,7 @@ export default function App() {
             {view === 'presenca' && (
               <PresencaView
                 nextMatch={nextMatch} data={data} attendanceArr={attendanceArr}
-                confirmedVasco={confirmedVasco} confirmedFla={confirmedFla}
+                confirmedVasco={confirmedVasco} confirmedFla={confirmedFla} confirmedResenha={confirmedResenha}
                 currentUser={currentUser} toggleAttendance={toggleAttendance}
                 isAdmin={isAdmin} onOpenResult={setResultModal}
               />
@@ -1707,7 +1708,7 @@ function ResetPasswordForm({ onSave }) {
 /* ---------------------------------------------------------
    PRESENÇA
 --------------------------------------------------------- */
-function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirmedFla, currentUser, toggleAttendance, isAdmin, onOpenResult }) {
+function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirmedFla, confirmedResenha, currentUser, toggleAttendance, isAdmin, onOpenResult }) {
   const iConfirmed = attendanceArr.includes(currentUser.id);
   const dateLabel = capitalize(nextMatch.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }));
   const nextKey = matchKeyFor(nextMatch);
@@ -1729,11 +1730,11 @@ function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirme
         )}
       </div>
 
-      {[['Vasco', confirmedVasco], ['Flamengo', confirmedFla]].map(([team, list]) => (
-        <div key={team} style={{ marginBottom: 16 }}>
+      {[['Vasco', confirmedVasco], ['Flamengo', confirmedFla], ['Resenha', confirmedResenha]].map(([label, list]) => (
+        <div key={label} style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            {React.createElement(TEAM_EMBLEM[team], { size: 20 })}
-            <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>{team}</span>
+            {TEAM_EMBLEM[label] ? React.createElement(TEAM_EMBLEM[label], { size: 20 }) : <Users size={20} color={C.chalkDim} />}
+            <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>{label}</span>
             <span style={{ fontSize: 11, color: C.chalkDim }}>({list.length} confirmados)</span>
           </div>
           {list.length === 0 ? (
