@@ -42,6 +42,7 @@ const POSITIONS = [
   { key: 'Meia', abbr: 'MEI' },
   { key: 'Atacante', abbr: 'ATA' },
   { key: 'Presidente', abbr: 'PRES' },
+  { key: 'Resenha', abbr: 'RESENHA' },
 ];
 
 const TEAM_STYLE = {
@@ -61,9 +62,23 @@ const TEAM_STYLE = {
     dot: '#E2231A',
     chip: 'rgba(226,35,26,0.18)',
   },
+  // estilo neutro para quem não tem time (ex: cargo Resenha)
+  Resenha: {
+    label: 'Resenha',
+    bg: 'rgba(245,241,230,0.12)',
+    solid: 'rgba(245,241,230,0.12)',
+    text: C.chalk,
+    dot: C.chalkDim,
+    chip: 'rgba(245,241,230,0.10)',
+  },
 };
 
-const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, results: {}, config: { monthlyFee: 70, adminPin: null, pixKey: '21999983445' } };
+// jogador "sem time" (ex: cargo Resenha) cai no estilo neutro em vez de quebrar
+function teamStyleOf(team) {
+  return TEAM_STYLE[team] || TEAM_STYLE.Resenha;
+}
+
+const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, results: {}, config: { monthlyFee: 70, monthlyFeeResenha: 50, adminPin: null, pixKey: '21999983445' } };
 const STORAGE_KEY = 'furao-app-data';
 
 /* ---------------------------------------------------------
@@ -99,6 +114,10 @@ const LAST_SEASON_CHAMPION = { year: new Date().getFullYear() - 1, team: 'Flamen
 --------------------------------------------------------- */
 function fmtBRL(n) {
   return (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+// mensalidade fixa: R$70 pra jogadores, R$50 pra Resenha
+function feeFor(player, config) {
+  return player?.position === 'Resenha' ? Number(config?.monthlyFeeResenha ?? 50) : Number(config?.monthlyFee ?? 70);
 }
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -425,6 +444,7 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmi
 
   const editingAdminAlready = initial?.isAdmin;
   const isPresidente = position === 'Presidente';
+  const isResenha = position === 'Resenha';
 
   useEffect(() => {
     if (isPresidente) setWantsAdmin(true);
@@ -433,13 +453,16 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmi
   async function submit() {
     if (!name.trim()) { setError('Digite o nome do jogador.'); return; }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Digite um e-mail válido.'); return; }
-    const numberValue = Number(number);
-    if (!number.trim() || !Number.isInteger(numberValue) || numberValue < 1 || numberValue > 99) {
-      setError('Escolha um número de camisa entre 1 e 99.');
-      return;
+    let numberValue = null;
+    if (!isResenha) {
+      numberValue = Number(number);
+      if (!number.trim() || !Number.isInteger(numberValue) || numberValue < 1 || numberValue > 99) {
+        setError('Escolha um número de camisa entre 1 e 99.');
+        return;
+      }
+      const numberTaken = players.some((p) => p.team === team && Number(p.number) === numberValue);
+      if (numberTaken) { setError(`O número ${numberValue} já está sendo usado por outro jogador do ${team}.`); return; }
     }
-    const numberTaken = players.some((p) => p.team === team && Number(p.number) === numberValue);
-    if (numberTaken) { setError(`O número ${numberValue} já está sendo usado por outro jogador do ${team}.`); return; }
     const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '');
     if (!cleanUsername) { setError('Escolha um nome de usuário.'); return; }
     const taken = players.some((p) => p.username?.toLowerCase() === cleanUsername);
@@ -477,7 +500,8 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmi
     }
     setSaving(false);
     onSave({
-      name: name.trim(), phone: phone.trim(), email: email.trim(), number: numberValue, team, position,
+      name: name.trim(), phone: phone.trim(), email: email.trim(),
+      number: isResenha ? null : numberValue, team: isResenha ? null : team, position,
       username: cleanUsername, passwordHash, salt,
       isAdmin, wantsAdminPin: pin, newPin,
     });
@@ -502,40 +526,50 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmi
       <Field label="E-mail (opcional)">
         <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seuemail@exemplo.com" autoCapitalize="none" />
       </Field>
-      <Field label="Número da camisa">
-        <input
-          style={inputStyle}
-          type="number"
-          inputMode="numeric"
-          min="1"
-          max="99"
-          value={number}
-          onChange={(e) => setNumber(e.target.value.replace(/\D/g, '').slice(0, 2))}
-          placeholder="Ex: 10"
-        />
-      </Field>
-      <Field label="Time">
-        <div style={{ display: 'flex', gap: 10 }}>
-          {['Vasco', 'Flamengo'].map((t) => {
-            const Emblem = TEAM_EMBLEM[t];
-            return (
-              <button
-                key={t}
-                onClick={() => setTeam(t)}
-                style={{
-                  flex: 1, padding: '12px 10px', borderRadius: 10, cursor: 'pointer',
-                  border: team === t ? `2px solid ${C.green}` : `1px solid ${C.line}`,
-                  background: C.cardAlt, color: C.chalk,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                }}
-              >
-                <Emblem size={30} />
-                <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14 }}>{t}</span>
-              </button>
-            );
-          })}
+      {!isResenha && (
+        <Field label="Número da camisa">
+          <input
+            style={inputStyle}
+            type="number"
+            inputMode="numeric"
+            min="1"
+            max="99"
+            value={number}
+            onChange={(e) => setNumber(e.target.value.replace(/\D/g, '').slice(0, 2))}
+            placeholder="Ex: 10"
+          />
+        </Field>
+      )}
+      {!isResenha && (
+        <Field label="Time">
+          <div style={{ display: 'flex', gap: 10 }}>
+            {['Vasco', 'Flamengo'].map((t) => {
+              const Emblem = TEAM_EMBLEM[t];
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTeam(t)}
+                  style={{
+                    flex: 1, padding: '12px 10px', borderRadius: 10, cursor: 'pointer',
+                    border: team === t ? `2px solid ${C.green}` : `1px solid ${C.line}`,
+                    background: C.cardAlt, color: C.chalk,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <Emblem size={30} />
+                  <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14 }}>{t}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
+      {isResenha && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 12, background: 'rgba(245,241,230,0.04)', marginBottom: 14 }}>
+          <Users size={16} color={C.chalkDim} />
+          <span style={{ fontSize: 12.5, color: C.chalkDim }}>Cargo Resenha: sem time e sem número — não entra na lista de jogadores, só acompanha o rolê.</span>
         </div>
-      </Field>
+      )}
       <Field label="Posição (cargo em campo)">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
           {POSITIONS.map((p) => (
@@ -809,14 +843,18 @@ function MatchResultForm({ matchKey, initial, players, onCancel, onSave }) {
 function ScoreboardCard({ players, payments, monthKey, monthLabel, config }) {
   const vasco = players.filter((p) => p.team === 'Vasco');
   const fla = players.filter((p) => p.team === 'Flamengo');
+  const resenha = players.filter((p) => p.position === 'Resenha');
 
   function sumFor(list) {
     return list.reduce((acc, p) => acc + (payments[p.id]?.[monthKey]?.paid ? Number(payments[p.id][monthKey].amount || 0) : 0), 0);
   }
+  const feeJogador = Number(config.monthlyFee ?? 70);
+  const feeResenha = Number(config.monthlyFeeResenha ?? 50);
   const vascoTotal = sumFor(vasco);
   const flaTotal = sumFor(fla);
-  const total = vascoTotal + flaTotal;
-  const possible = players.length * (config.monthlyFee || 0);
+  const resenhaTotal = sumFor(resenha);
+  const total = vascoTotal + flaTotal + resenhaTotal;
+  const possible = (vasco.length + fla.length) * feeJogador + resenha.length * feeResenha;
   const pct = possible > 0 ? Math.min(100, Math.round((total / possible) * 100)) : 0;
 
   return (
@@ -850,6 +888,17 @@ function ScoreboardCard({ players, payments, monthKey, monthLabel, config }) {
           <span style={{ color: C.gold, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13 }}>{fmtBRL(flaTotal)}</span>
         </div>
       </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderTop: `1px solid ${C.line}`, background: C.cardAlt, gap: 8 }}>
+        <span style={{ fontSize: 10, color: C.chalkDim }}>
+          Mensalidade: <b style={{ color: C.chalk }}>Jogador {fmtBRL(feeJogador)}</b> · <b style={{ color: C.chalk }}>Resenha {fmtBRL(feeResenha)}</b>
+        </span>
+        {resenha.length > 0 && (
+          <span style={{ fontSize: 10, color: C.chalkDim, whiteSpace: 'nowrap' }}>
+            Resenha: <b style={{ color: C.gold }}>{fmtBRL(resenhaTotal)}</b>
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -868,8 +917,8 @@ function Header({ currentUser, onLogout }) {
       </div>
       {currentUser && (
         <button onClick={onLogout} title="Sair" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 999, background: TEAM_STYLE[currentUser.team].bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
-            <span style={{ color: TEAM_STYLE[currentUser.team].text, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 999, background: teamStyleOf(currentUser.team).bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
+            <span style={{ color: teamStyleOf(currentUser.team).text, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
               {currentUser.name.charAt(0).toUpperCase()}
             </span>
           </div>
@@ -882,8 +931,8 @@ function Header({ currentUser, onLogout }) {
 /* ---------------------------------------------------------
    BOTTOM NAV
 --------------------------------------------------------- */
-function BottomNav({ view, setView }) {
-  const items = [
+function BottomNav({ view, setView, isResenha }) {
+  const allItems = [
     { key: 'inicio', label: 'Início', icon: Home },
     { key: 'jogadores', label: 'Jogadores', icon: Users },
     { key: 'presenca', label: 'Presença', icon: Calendar },
@@ -891,6 +940,9 @@ function BottomNav({ view, setView }) {
     { key: 'financeiro', label: 'Financeiro', icon: Wallet },
     { key: 'perfil', label: 'Perfil', icon: User },
   ];
+  // cargo Resenha só acessa Início, Jogadores, Presença, Placar e Perfil (sem Financeiro)
+  const RESENHA_MENUS = ['inicio', 'jogadores', 'presenca', 'placar', 'financeiro', 'perfil'];
+  const items = isResenha ? allItems.filter((it) => RESENHA_MENUS.includes(it.key)) : allItems;
   return (
     <div style={{
       position: 'sticky', bottom: 0, left: 0, right: 0, display: 'flex',
@@ -919,7 +971,7 @@ function BottomNav({ view, setView }) {
    PLAYER ROW
 --------------------------------------------------------- */
 function PlayerRow({ player, onClick, right }) {
-  const ts = TEAM_STYLE[player.team];
+  const ts = teamStyleOf(player.team);
   const posAbbr = POSITIONS.find((p) => p.key === player.position)?.abbr || '';
   return (
     <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', cursor: onClick ? 'pointer' : 'default' }}>
@@ -1012,6 +1064,7 @@ export default function App() {
 
   const currentUser = useMemo(() => data.players.find((p) => p.id === currentUserId) || null, [data.players, currentUserId]);
   const isAdmin = currentUser?.isAdmin === true;
+  const isResenha = currentUser?.position === 'Resenha';
 
   const nextMatch = useMemo(() => getNextMatch(), []);
   const nextMatchKey = matchKeyFor(nextMatch);
@@ -1107,7 +1160,8 @@ export default function App() {
     const key = mKey || monthKey;
     const current = data.payments[playerId]?.[key];
     const paid = !(current?.paid);
-    const entry = { paid, amount: data.config.monthlyFee, paidAt: paid ? new Date().toISOString() : null, claimed: paid ? current?.claimed : false, claimedAt: current?.claimedAt || null };
+    const player = data.players.find((p) => p.id === playerId);
+    const entry = { paid, amount: feeFor(player, data.config), paidAt: paid ? new Date().toISOString() : null, claimed: paid ? current?.claimed : false, claimedAt: current?.claimedAt || null };
     persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
   }
 
@@ -1115,12 +1169,13 @@ export default function App() {
     const key = mKey || monthKey;
     const current = data.payments[playerId]?.[key];
     if (current?.paid) return;
-    const entry = { paid: false, amount: data.config.monthlyFee, claimed: true, claimedAt: new Date().toISOString() };
+    const player = data.players.find((p) => p.id === playerId);
+    const entry = { paid: false, amount: feeFor(player, data.config), claimed: true, claimedAt: new Date().toISOString() };
     persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
   }
 
-  function updateFee(newFee) {
-    persist({ ...data, config: { ...data.config, monthlyFee: newFee } });
+  function updateFee(newFee, newFeeResenha) {
+    persist({ ...data, config: { ...data.config, monthlyFee: newFee, monthlyFeeResenha: newFeeResenha } });
   }
 
   function updatePixKey(newKey) {
@@ -1170,7 +1225,8 @@ export default function App() {
   const attendanceArr = data.attendance[nextMatchKey] || [];
   const confirmedVasco = data.players.filter((p) => p.team === 'Vasco' && attendanceArr.includes(p.id));
   const confirmedFla = data.players.filter((p) => p.team === 'Flamengo' && attendanceArr.includes(p.id));
-  const filteredPlayers = data.players.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+  // cargo Resenha não entra na lista de jogadores
+  const filteredPlayers = data.players.filter((p) => p.position !== 'Resenha' && p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="furao-shell" style={{ maxWidth: 420, margin: '0 auto', background: C.bgGrad, height: 844, borderRadius: 24, overflow: 'hidden', fontFamily: "'Inter',sans-serif", boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${C.line}` }}>
@@ -1259,7 +1315,7 @@ export default function App() {
               />
             )}
           </div>
-          <BottomNav view={view} setView={setView} />
+          <BottomNav view={view} setView={setView} isResenha={isResenha} />
         </div>
       )}
 
@@ -1311,7 +1367,7 @@ export default function App() {
 
       {showSettings && (
         <Modal title="Configurações" onClose={() => setShowSettings(false)}>
-          <SettingsPanel config={data.config} onSave={(fee) => { updateFee(fee); setShowSettings(false); }} />
+          <SettingsPanel config={data.config} onSave={(fee, feeResenha) => { updateFee(fee, feeResenha); setShowSettings(false); }} />
         </Modal>
       )}
 
@@ -1330,7 +1386,7 @@ export default function App() {
           <MatchResultForm
             matchKey={resultModal}
             initial={data.results[resultModal]}
-            players={data.players}
+            players={data.players.filter((p) => p.position !== 'Resenha')}
             onCancel={() => setResultModal(null)}
             onSave={(result) => saveResult(resultModal, result)}
           />
@@ -1569,8 +1625,8 @@ function PlayerDetail({ player, isAdmin, onEdit, onDelete, onResetPassword }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <div style={{ width: 52, height: 52, borderRadius: 999, background: TEAM_STYLE[player.team].bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
-          <span style={{ color: TEAM_STYLE[player.team].text, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 18, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>{player.name.charAt(0).toUpperCase()}</span>
+        <div style={{ width: 52, height: 52, borderRadius: 999, background: teamStyleOf(player.team).bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
+          <span style={{ color: teamStyleOf(player.team).text, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 18, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>{player.name.charAt(0).toUpperCase()}</span>
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1900,9 +1956,11 @@ function PlacarView({ data, isAdmin, onOpenResult }) {
    FINANCEIRO (ADMIN) — vê e edita todo mundo
 --------------------------------------------------------- */
 function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffset, isAdmin, togglePayment }) {
-  const total = data.players.reduce((acc, p) => acc + (data.payments[p.id]?.[monthKey]?.paid ? Number(data.payments[p.id][monthKey].amount || 0) : 0), 0);
-  const pendentes = data.players.filter((p) => !data.payments[p.id]?.[monthKey]?.paid);
-  const aguardando = data.players.filter((p) => data.payments[p.id]?.[monthKey]?.claimed && !data.payments[p.id]?.[monthKey]?.paid);
+  // agora Resenha também paga mensalidade (valor menor) e entra no controle financeiro
+  const players = data.players;
+  const total = players.reduce((acc, p) => acc + (data.payments[p.id]?.[monthKey]?.paid ? Number(data.payments[p.id][monthKey].amount || 0) : 0), 0);
+  const pendentes = players.filter((p) => !data.payments[p.id]?.[monthKey]?.paid);
+  const aguardando = players.filter((p) => data.payments[p.id]?.[monthKey]?.claimed && !data.payments[p.id]?.[monthKey]?.paid);
 
   return (
     <div>
@@ -1934,12 +1992,12 @@ function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffse
       </div>
 
       <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>
-        Mensalidade: {fmtBRL(data.config.monthlyFee)} · toque para marcar pago/pendente
+        Mensalidade: Jogador {fmtBRL(data.config.monthlyFee ?? 70)} · Resenha {fmtBRL(data.config.monthlyFeeResenha ?? 50)} · toque para marcar pago/pendente
       </div>
 
-      {data.players.length === 0 ? (
+      {players.length === 0 ? (
         <div style={{ fontSize: 13, color: C.chalkDim, marginTop: 12 }}>Cadastre jogadores para começar a controlar o financeiro.</div>
-      ) : data.players.map((p) => {
+      ) : players.map((p) => {
         const entry = data.payments[p.id]?.[monthKey];
         const paid = entry?.paid;
         const claimed = entry?.claimed && !paid;
@@ -1969,7 +2027,10 @@ function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffse
    mas só consegue pagar/editar a própria mensalidade
 --------------------------------------------------------- */
 function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffset, setMonthOffset, onPay }) {
-  const ts = TEAM_STYLE[currentUser.team];
+  const isResenha = currentUser.position === 'Resenha';
+  const groupLabel = currentUser.team || 'Resenha';
+  const myFee = feeFor(currentUser, data.config);
+  // sem time (Resenha), o "grupo" é a galera que também não tem time — ou seja, o próprio Resenha
   const teammates = data.players.filter((p) => p.team === currentUser.team);
   const total = teammates.reduce((acc, p) => acc + (data.payments[p.id]?.[monthKey]?.paid ? Number(data.payments[p.id][monthKey].amount || 0) : 0), 0);
   const pendentes = teammates.filter((p) => !data.payments[p.id]?.[monthKey]?.paid);
@@ -1990,13 +2051,13 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        {React.createElement(TEAM_EMBLEM[currentUser.team], { size: 22 })}
-        <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>Financeiro do {currentUser.team}</span>
+        {isResenha ? <Users size={22} color={C.chalkDim} /> : React.createElement(TEAM_EMBLEM[currentUser.team], { size: 22 })}
+        <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>Financeiro do {groupLabel}</span>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', fontWeight: 700 }}>Arrecadado no time</div>
+          <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', fontWeight: 700 }}>Arrecadado</div>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.gold }}>{fmtBRL(total)}</div>
         </div>
         <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>
@@ -2007,8 +2068,8 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
 
       {!myPaid && !myClaimed && (
         <div style={{ marginBottom: 16 }}>
-          <PrimaryButton onClick={() => onPay(data.config.monthlyFee, monthLabel)}>
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><QrCode size={15} /> Pagar minha mensalidade ({fmtBRL(data.config.monthlyFee)})</span>
+          <PrimaryButton onClick={() => onPay(myFee, monthLabel)}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><QrCode size={15} /> Pagar minha mensalidade ({fmtBRL(myFee)})</span>
           </PrimaryButton>
         </div>
       )}
@@ -2020,7 +2081,7 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
       )}
 
       <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>
-        Jogadores do {currentUser.team} · mensalidade {fmtBRL(data.config.monthlyFee)}
+        {isResenha ? 'Pessoal do Resenha' : `Jogadores do ${currentUser.team}`} · mensalidade {fmtBRL(myFee)}
       </div>
 
       {teammates.map((p) => {
@@ -2046,7 +2107,7 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
       })}
 
       <div style={{ fontSize: 11, color: C.chalkDim, marginTop: 14 }}>
-        Você vê os pagamentos do seu próprio time. O outro time e a edição de status ficam com o administrador.
+        Você vê os pagamentos do seu próprio grupo. O resto e a edição de status ficam com o administrador.
       </div>
     </div>
   );
@@ -2056,7 +2117,7 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
    PERFIL
 --------------------------------------------------------- */
 function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onPixSettings, onShowPix }) {
-  const ts = TEAM_STYLE[currentUser.team];
+  const ts = teamStyleOf(currentUser.team);
   return (
     <div>
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 20, textAlign: 'center', marginBottom: 16 }}>
@@ -2067,7 +2128,10 @@ function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onPixS
           <span style={{ color: C.chalk, fontWeight: 700, fontSize: 18 }}>{currentUser.name}</span>
           {isAdmin && <Shield size={15} color={C.gold} />}
         </div>
-        <div style={{ fontSize: 12, color: C.chalkDim }}>@{currentUser.username} · {currentUser.number != null ? `#${currentUser.number} · ` : ''}{currentUser.position} · {currentUser.team}{isAdmin ? ' · Administrador' : ''}</div>
+        <div style={{ fontSize: 12, color: C.chalkDim }}>
+          @{currentUser.username} · {currentUser.number != null ? `#${currentUser.number} · ` : ''}
+          {currentUser.position}{currentUser.team ? ` · ${currentUser.team}` : ''}{isAdmin ? ' · Administrador' : ''}
+        </div>
         {currentUser.email && <div style={{ fontSize: 11, color: C.chalkDim, marginTop: 2 }}>{currentUser.email}</div>}
       </div>
 
@@ -2101,13 +2165,17 @@ function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onPixS
 }
 
 function SettingsPanel({ config, onSave }) {
-  const [fee, setFee] = useState(String(config.monthlyFee));
+  const [fee, setFee] = useState(String(config.monthlyFee ?? 70));
+  const [feeResenha, setFeeResenha] = useState(String(config.monthlyFeeResenha ?? 50));
   return (
     <div>
-      <Field label="Valor da mensalidade (R$)">
+      <Field label="Mensalidade dos jogadores (R$)">
         <input style={inputStyle} inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} />
       </Field>
-      <PrimaryButton onClick={() => onSave(Number(fee.replace(',', '.')) || 0)}>Salvar</PrimaryButton>
+      <Field label="Mensalidade do cargo Resenha (R$)">
+        <input style={inputStyle} inputMode="decimal" value={feeResenha} onChange={(e) => setFeeResenha(e.target.value)} />
+      </Field>
+      <PrimaryButton onClick={() => onSave(Number(fee.replace(',', '.')) || 0, Number(feeResenha.replace(',', '.')) || 0)}>Salvar</PrimaryButton>
     </div>
   );
 }
