@@ -40,6 +40,7 @@ const POSITIONS = [
   { key: 'Volante', abbr: 'VOL' },
   { key: 'Meia', abbr: 'MEI' },
   { key: 'Atacante', abbr: 'ATA' },
+  { key: 'Presidente', abbr: 'PRES' },
 ];
 
 const TEAM_STYLE = {
@@ -304,6 +305,11 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmi
   const [saving, setSaving] = useState(false);
 
   const editingAdminAlready = initial?.isAdmin;
+  const isPresidente = position === 'Presidente';
+
+  useEffect(() => {
+    if (isPresidente) setWantsAdmin(true);
+  }, [isPresidente]);
 
   async function submit() {
     if (!name.trim()) { setError('Digite o nome do jogador.'); return; }
@@ -447,13 +453,20 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmi
         )}
       </div>
 
-      {(isEdit ? !editingAdminAlready : !hasAdmin) && (
+      {((isEdit ? !editingAdminAlready : !hasAdmin) || isPresidente) && (
         <Field label="Cargo administrativo">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 12, background: 'rgba(245,241,230,0.04)' }}>
-            <input type="checkbox" checked={wantsAdmin} onChange={(e) => setWantsAdmin(e.target.checked)} />
-            <Shield size={16} color={C.gold} />
-            <span style={{ fontSize: 14, color: C.chalk }}>Também é administrador (cuida das finanças)</span>
-          </label>
+          {isPresidente ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 12, background: 'rgba(245,241,230,0.04)' }}>
+              <Shield size={16} color={C.gold} />
+              <span style={{ fontSize: 14, color: C.chalk }}>Presidente é sempre administrador do app.</span>
+            </div>
+          ) : (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 12, background: 'rgba(245,241,230,0.04)' }}>
+              <input type="checkbox" checked={wantsAdmin} onChange={(e) => setWantsAdmin(e.target.checked)} />
+              <Shield size={16} color={C.gold} />
+              <span style={{ fontSize: 14, color: C.chalk }}>Também é administrador (cuida das finanças)</span>
+            </label>
+          )}
           {wantsAdmin && (
             <div style={{ marginTop: 10 }}>
               {actingIsAdmin ? (
@@ -829,6 +842,7 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [detailPlayer, setDetailPlayer] = useState(null);
+  const [resetPasswordPlayer, setResetPasswordPlayer] = useState(null);
   const [pendingAdminClaim, setPendingAdminClaim] = useState(null);
   const [monthOffset, setMonthOffset] = useState(0);
   const [search, setSearch] = useState('');
@@ -940,6 +954,14 @@ export default function App() {
       setSession(player.id);
       setShowRegister(false);
     }
+  }
+
+  async function resetPlayerPassword(playerId, newPassword) {
+    const salt = uid();
+    const passwordHash = await hashPassword(newPassword, salt);
+    const players = data.players.map((p) => p.id === playerId ? { ...p, passwordHash, salt } : p);
+    persist({ ...data, players });
+    setResetPasswordPlayer(null);
   }
 
   function removePlayer(id) {
@@ -1146,6 +1168,7 @@ export default function App() {
             player={detailPlayer} isAdmin={isAdmin}
             onEdit={() => { setEditingPlayer(detailPlayer); setDetailPlayer(null); }}
             onDelete={() => setConfirmDelete(detailPlayer)}
+            onResetPassword={() => { setResetPasswordPlayer(detailPlayer); setDetailPlayer(null); }}
           />
         </Modal>
       )}
@@ -1158,6 +1181,12 @@ export default function App() {
           <div style={{ display: 'flex', gap: 10 }}>
             <PrimaryButton danger onClick={() => removePlayer(confirmDelete.id)}>Remover</PrimaryButton>
           </div>
+        </Modal>
+      )}
+
+      {resetPasswordPlayer && (
+        <Modal title={`Resetar senha — ${resetPasswordPlayer.name}`} onClose={() => setResetPasswordPlayer(null)}>
+          <ResetPasswordForm onSave={(newPassword) => resetPlayerPassword(resetPasswordPlayer.id, newPassword)} />
         </Modal>
       )}
 
@@ -1415,7 +1444,7 @@ function JogadoresView({ players, search, setSearch, onOpen, onNew, isAdmin }) {
   );
 }
 
-function PlayerDetail({ player, isAdmin, onEdit, onDelete }) {
+function PlayerDetail({ player, isAdmin, onEdit, onDelete, onResetPassword }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -1445,15 +1474,55 @@ function PlayerDetail({ player, isAdmin, onEdit, onDelete }) {
         Pagamentos ficam visíveis para o próprio time na aba Financeiro (o administrador vê os dois times).
       </div>
       {isAdmin && (
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onEdit} style={{ flex: 1, padding: '11px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.06)', color: C.chalk, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}>
-            <Pencil size={14} /> Editar
-          </button>
-          <button onClick={onDelete} style={{ flex: 1, padding: '11px', borderRadius: 12, border: 'none', background: C.danger, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}>
-            <Trash2 size={14} /> Remover
+        <div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <button onClick={onEdit} style={{ flex: 1, padding: '11px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.06)', color: C.chalk, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}>
+              <Pencil size={14} /> Editar
+            </button>
+            <button onClick={onDelete} style={{ flex: 1, padding: '11px', borderRadius: 12, border: 'none', background: C.danger, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}>
+              <Trash2 size={14} /> Remover
+            </button>
+          </div>
+          <button onClick={onResetPassword} style={{ width: '100%', padding: '11px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.06)', color: C.chalk, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer' }}>
+            <Lock size={14} /> Resetar senha
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   RESET DE SENHA (admin define nova senha para o jogador)
+--------------------------------------------------------- */
+function ResetPasswordForm({ onSave }) {
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    if (password.length < 4) { setError('Crie uma senha com pelo menos 4 caracteres.'); return; }
+    if (password !== passwordConfirm) { setError('As senhas não conferem.'); return; }
+    setError('');
+    setSaving(true);
+    await onSave(password);
+    setSaving(false);
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: C.chalkDim, marginBottom: 14 }}>
+        Defina uma nova senha para o jogador. Avise ele pessoalmente — essa tela não guarda nem mostra a senha depois.
+      </div>
+      <Field label="Nova senha">
+        <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 4 caracteres" />
+      </Field>
+      <Field label="Confirmar senha">
+        <input style={inputStyle} type="password" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="Repita a senha" onKeyDown={(e) => e.key === 'Enter' && submit()} />
+      </Field>
+      {error && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <PrimaryButton onClick={submit} disabled={saving}>Salvar nova senha</PrimaryButton>
     </div>
   );
 }
