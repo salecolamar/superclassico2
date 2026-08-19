@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from './firebase.js';
+import { db, auth } from './firebase.js';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   Home, Users, Calendar, Wallet, User, Shield, Plus, X, Check,
   ChevronLeft, ChevronRight, Search, Trash2, Pencil, Phone,
-  CheckCircle2, Circle, Lock, QrCode, Copy, LogOut, Mail
+  CheckCircle2, Circle, Lock, QrCode, Copy, LogOut, Mail, Clock, Trophy
 } from 'lucide-react';
 
 /* ---------------------------------------------------------
    TOKENS
 --------------------------------------------------------- */
 const C = {
-  bg: '#071A12',
-  bgGrad: 'radial-gradient(1100px 700px at 50% -12%, #0F2E20 0%, #071A12 55%, #050F0B 100%)',
+  bg: '#000000',
+  bgGrad: 'radial-gradient(1100px 700px at 50% -12%, #111111 0%, #000000 55%, #000000 100%)',
   card: '#0D2318',
   cardAlt: '#11291C',
   line: 'rgba(245,241,230,0.09)',
@@ -60,7 +61,7 @@ const TEAM_STYLE = {
   },
 };
 
-const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, config: { monthlyFee: 70, adminPin: null } };
+const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, results: {}, config: { monthlyFee: 70, adminPin: null, pixKey: '21999983445' } };
 const STORAGE_KEY = 'furao-app-data';
 
 /* ---------------------------------------------------------
@@ -86,64 +87,10 @@ function FlamengoEmblem({ size = 40 }) { return <TeamBadge team="Flamengo" size=
 
 const TEAM_EMBLEM = { Vasco: VascoEmblem, Flamengo: FlamengoEmblem };
 
-/* ---------------------------------------------------------
-   LOGO SUPER CLÁSSICO (desenho original — escudo dividido nas
-   cores dos dois times + faixa com o nome; não reproduz os
-   escudos oficiais dos clubes)
---------------------------------------------------------- */
-const LOGO_SHIELD_POINTS = '240,70 390,106 390,196 367.5,250 330,310 240,370 150,310 112.5,250 90,196 90,106';
-const LOGO_STAR_POINTS = '240,6 246.4,23.2 264.7,24 250.4,35.4 255.3,53 240,42.9 224.7,53 229.6,35.4 215.3,24 233.6,23.2';
-
-function SuperClassicoMark({ size = 60 }) {
-  return (
-    <svg width={size} height={size * (400 / 480)} viewBox="0 0 480 400" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <clipPath id="scShieldClip"><polygon points={LOGO_SHIELD_POINTS} /></clipPath>
-      </defs>
-      <g clipPath="url(#scShieldClip)">
-        <rect x="90" y="60" width="150" height="320" fill="#0E0E10" />
-        <polygon points="70,169 246,56 266,80 92,208" fill="#F5F3EE" />
-        <rect x="240" y="60" width="150" height="320" fill="#0E0E10" />
-        <rect x="240" y="106" width="150" height="22.5" fill="#E2231A" />
-        <rect x="240" y="151" width="150" height="22.5" fill="#E2231A" />
-        <rect x="240" y="196" width="150" height="22.5" fill="#E2231A" />
-        <rect x="240" y="241" width="150" height="22.5" fill="#E2231A" />
-      </g>
-      <line x1="240" y1="70" x2="240" y2="370" stroke="#FFC53D" strokeWidth="4" />
-      <polygon points={LOGO_SHIELD_POINTS} fill="none" stroke="#FFC53D" strokeWidth="9" strokeLinejoin="round" />
-      <polygon points={LOGO_STAR_POINTS} fill="#FFC53D" />
-    </svg>
-  );
-}
-
-function SuperClassicoLogo({ size = 220 }) {
-  return (
-    <svg width={size} height={size * (430 / 480)} viewBox="0 0 480 430" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <clipPath id="scShieldClipFull"><polygon points={LOGO_SHIELD_POINTS} /></clipPath>
-      </defs>
-      <g clipPath="url(#scShieldClipFull)">
-        <rect x="90" y="60" width="150" height="320" fill="#0E0E10" />
-        <polygon points="70,169 246,56 266,80 92,208" fill="#F5F3EE" />
-        <rect x="240" y="60" width="150" height="320" fill="#0E0E10" />
-        <rect x="240" y="106" width="150" height="22.5" fill="#E2231A" />
-        <rect x="240" y="151" width="150" height="22.5" fill="#E2231A" />
-        <rect x="240" y="196" width="150" height="22.5" fill="#E2231A" />
-        <rect x="240" y="241" width="150" height="22.5" fill="#E2231A" />
-      </g>
-      <line x1="240" y1="70" x2="240" y2="370" stroke="#FFC53D" strokeWidth="4" />
-      <polygon points={LOGO_SHIELD_POINTS} fill="none" stroke="#FFC53D" strokeWidth="9" strokeLinejoin="round" />
-      <polygon points={LOGO_STAR_POINTS} fill="#FFC53D" />
-
-      <polygon points="34,323 60,323 60,397 34,397 52,360" fill="#123A2C" stroke="#FFC53D" strokeWidth="2" />
-      <polygon points="446,323 420,323 420,397 446,397 428,360" fill="#123A2C" stroke="#FFC53D" strokeWidth="2" />
-      <polygon points="60,315 420,315 402,360 420,405 60,405 78,360" fill="#123A2C" stroke="#FFC53D" strokeWidth="3" />
-      <text x="240" y="345" fontFamily="'Rajdhani',sans-serif" fontWeight="700" fontSize="34" fill="#FFC53D" textAnchor="middle" letterSpacing="2">SUPER</text>
-      <text x="240" y="385" fontFamily="'Rajdhani',sans-serif" fontWeight="700" fontSize="40" fill="#FFC53D" textAnchor="middle" letterSpacing="1">CLÁSSICO</text>
-    </svg>
-  );
-}
 const PIX_KEY_RAW = '21999983445';
+// Campeão da temporada anterior — o futebol já existia antes deste app,
+// então esse título fica registrado manualmente aqui.
+const LAST_SEASON_CHAMPION = { year: new Date().getFullYear() - 1, team: 'Flamengo' };
 
 /* ---------------------------------------------------------
    HELPERS
@@ -168,6 +115,32 @@ function monthKeyFor(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+function getMonthChampion(results, monthKey) {
+  let vascoWins = 0;
+  let flaWins = 0;
+  let empates = 0;
+  Object.entries(results || {}).forEach(([matchKey, r]) => {
+    if (!matchKey.startsWith(monthKey)) return;
+    if (r.winner === 'Vasco') vascoWins++;
+    else if (r.winner === 'Flamengo') flaWins++;
+    else if (r.winner === 'Empate') empates++;
+  });
+  let leader = null;
+  if (vascoWins > flaWins) leader = 'Vasco';
+  else if (flaWins > vascoWins) leader = 'Flamengo';
+  return { vascoWins, flaWins, empates, leader, totalGames: vascoWins + flaWins + empates };
+}
+
+function getWednesdaysInMonth(year, month) {
+  const dates = [];
+  const d = new Date(year, month, 1);
+  while (d.getMonth() === month) {
+    if (d.getDay() === 3) dates.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -217,8 +190,14 @@ function crc16ccitt(payload) {
   return crc.toString(16).toUpperCase().padStart(4, '0');
 }
 
-function buildPixPayload({ amount, description, txid }) {
-  const key = `+55${PIX_KEY_RAW}`;
+function formatPixKey(rawKey) {
+  const trimmed = (rawKey || PIX_KEY_RAW).trim();
+  if (/^\d{10,11}$/.test(trimmed)) return `+55${trimmed}`;
+  return trimmed;
+}
+
+function buildPixPayload({ amount, description, txid, pixKey }) {
+  const key = formatPixKey(pixKey);
   let mai = tlv('00', 'br.gov.bcb.pix') + tlv('01', key);
   if (description) mai += tlv('02', description.slice(0, 40));
   const merchantAccount = tlv('26', mai);
@@ -240,7 +219,7 @@ function Modal({ title, onClose, children, wide }) {
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(4,14,10,0.72)',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50,
         backdropFilter: 'blur(2px)',
       }}
@@ -307,11 +286,12 @@ const inputStyle = {
 /* ---------------------------------------------------------
    PLAYER FORM (create / edit) — inclui usuário e senha
 --------------------------------------------------------- */
-function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
+function PlayerForm({ initial, onCancel, onSave, hasAdmin, players, actingIsAdmin }) {
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name || '');
   const [phone, setPhone] = useState(initial?.phone || '');
   const [email, setEmail] = useState(initial?.email || '');
+  const [number, setNumber] = useState(initial?.number != null ? String(initial.number) : '');
   const [team, setTeam] = useState(initial?.team || 'Vasco');
   const [position, setPosition] = useState(initial?.position || 'Meia');
   const [username, setUsername] = useState(initial?.username || '');
@@ -328,6 +308,13 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
   async function submit() {
     if (!name.trim()) { setError('Digite o nome do jogador.'); return; }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Digite um e-mail válido.'); return; }
+    const numberValue = Number(number);
+    if (!number.trim() || !Number.isInteger(numberValue) || numberValue < 1 || numberValue > 99) {
+      setError('Escolha um número de camisa entre 1 e 99.');
+      return;
+    }
+    const numberTaken = players.some((p) => p.team === team && Number(p.number) === numberValue);
+    if (numberTaken) { setError(`O número ${numberValue} já está sendo usado por outro jogador do ${team}.`); return; }
     const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '');
     if (!cleanUsername) { setError('Escolha um nome de usuário.'); return; }
     const taken = players.some((p) => p.username?.toLowerCase() === cleanUsername);
@@ -342,7 +329,9 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
     let newPin = null;
 
     if (wantsAdmin && !editingAdminAlready) {
-      if (!hasAdmin) {
+      if (actingIsAdmin) {
+        isAdmin = true;
+      } else if (!hasAdmin) {
         if (pin.length < 4) { setError('Crie um PIN de administrador com pelo menos 4 dígitos.'); return; }
         if (pin !== pinConfirm) { setError('Os PINs não conferem.'); return; }
         newPin = pin;
@@ -363,7 +352,7 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
     }
     setSaving(false);
     onSave({
-      name: name.trim(), phone: phone.trim(), email: email.trim(), team, position,
+      name: name.trim(), phone: phone.trim(), email: email.trim(), number: numberValue, team, position,
       username: cleanUsername, passwordHash, salt,
       isAdmin, wantsAdminPin: pin, newPin,
     });
@@ -375,10 +364,30 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
         <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" />
       </Field>
       <Field label="Telefone (opcional)">
-        <input style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(21) 9xxxx-xxxx" />
+        <input
+          style={inputStyle}
+          type="tel"
+          inputMode="numeric"
+          maxLength={11}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+          placeholder="21999999999"
+        />
       </Field>
       <Field label="E-mail (opcional)">
         <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seuemail@exemplo.com" autoCapitalize="none" />
+      </Field>
+      <Field label="Número da camisa">
+        <input
+          style={inputStyle}
+          type="number"
+          inputMode="numeric"
+          min="1"
+          max="99"
+          value={number}
+          onChange={(e) => setNumber(e.target.value.replace(/\D/g, '').slice(0, 2))}
+          placeholder="Ex: 10"
+        />
       </Field>
       <Field label="Time">
         <div style={{ display: 'flex', gap: 10 }}>
@@ -438,7 +447,7 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
         )}
       </div>
 
-      {!editingAdminAlready && (
+      {(isEdit ? !editingAdminAlready : !hasAdmin) && (
         <Field label="Cargo administrativo">
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', border: `1px solid ${C.line}`, borderRadius: 12, background: 'rgba(245,241,230,0.04)' }}>
             <input type="checkbox" checked={wantsAdmin} onChange={(e) => setWantsAdmin(e.target.checked)} />
@@ -447,7 +456,11 @@ function PlayerForm({ initial, onCancel, onSave, hasAdmin, players }) {
           </label>
           {wantsAdmin && (
             <div style={{ marginTop: 10 }}>
-              {!hasAdmin ? (
+              {actingIsAdmin ? (
+                <div style={{ fontSize: 12, color: C.chalkDim, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Shield size={13} color={C.green} /> Como você já é administrador, pode promover direto — sem precisar de PIN.
+                </div>
+              ) : !hasAdmin ? (
                 <>
                   <div style={{ fontSize: 12, color: C.chalkDim, marginBottom: 6 }}>Você será o primeiro administrador. Crie um PIN para proteger o financeiro:</div>
                   <input style={{ ...inputStyle, marginBottom: 8 }} type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="Criar PIN (mín. 4 dígitos)" />
@@ -488,10 +501,11 @@ function PinPrompt({ onConfirm, label }) {
 /* ---------------------------------------------------------
    PIX MODAL
 --------------------------------------------------------- */
-function PixModal({ amount, description, txid, onClose }) {
-  const payload = useMemo(() => buildPixPayload({ amount, description, txid }), [amount, description, txid]);
+function PixModal({ amount, description, txid, pixKey, onClose, onConfirmPaid }) {
+  const payload = useMemo(() => buildPixPayload({ amount, description, txid, pixKey }), [amount, description, txid, pixKey]);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(payload)}`;
   const [copied, setCopied] = useState(false);
+  const [claimed, setClaimed] = useState(false);
 
   return (
     <Modal title="Pagar com PIX" onClose={onClose}>
@@ -502,18 +516,158 @@ function PixModal({ amount, description, txid, onClose }) {
         {amount > 0 && (
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: C.gold, marginBottom: 2 }}>{fmtBRL(amount)}</div>
         )}
-        <div style={{ fontSize: 13, color: C.chalk, marginBottom: 2 }}>Chave PIX (celular): <b>{PIX_KEY_RAW}</b></div>
+        <div style={{ fontSize: 13, color: C.chalk, marginBottom: 2 }}>Chave PIX: <b>{pixKey || PIX_KEY_RAW}</b></div>
         <div style={{ fontSize: 12, color: C.chalkDim, marginBottom: 16 }}>Super Clássico · Rio de Janeiro</div>
 
         <div style={{ textAlign: 'left', fontSize: 11, color: C.chalkDim, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase' }}>Pix Copia e Cola</div>
         <div style={{ wordBreak: 'break-all', background: 'rgba(245,241,230,0.06)', border: `1px solid ${C.line}`, borderRadius: 10, padding: 10, fontSize: 11, color: C.chalkDim, fontFamily: 'monospace', marginBottom: 12, textAlign: 'left' }}>
           {payload}
         </div>
-        <PrimaryButton onClick={async () => { const ok = await copyText(payload); setCopied(ok); setTimeout(() => setCopied(false), 2000); }}>
+        <button onClick={async () => { const ok = await copyText(payload); setCopied(ok); setTimeout(() => setCopied(false), 2000); }} style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.06)', color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10 }}>
           {copied ? 'Código copiado!' : 'Copiar código PIX'}
-        </PrimaryButton>
+        </button>
+
+        {onConfirmPaid && (
+          claimed ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: C.success, fontSize: 13, fontWeight: 700, padding: '10px 0' }}>
+              <CheckCircle2 size={16} /> Administrador avisado!
+            </div>
+          ) : (
+            <PrimaryButton onClick={() => { onConfirmPaid(); setClaimed(true); }}>
+              Já paguei
+            </PrimaryButton>
+          )
+        )}
+        {onConfirmPaid && !claimed && (
+          <div style={{ fontSize: 11, color: C.chalkDim, marginTop: 8 }}>
+            Toque aqui depois de fazer a transferência — o administrador confirma o recebimento e o status muda pra "Pago".
+          </div>
+        )}
       </div>
     </Modal>
+  );
+}
+
+/* ---------------------------------------------------------
+   RESULTADO DA PARTIDA (formulário do administrador)
+--------------------------------------------------------- */
+function MatchResultForm({ matchKey, initial, players, onCancel, onSave }) {
+  const [winner, setWinner] = useState(initial?.winner || null);
+  const [vascoScore, setVascoScore] = useState(initial?.vascoScore ?? '');
+  const [flaScore, setFlaScore] = useState(initial?.flaScore ?? '');
+  const [scorers, setScorers] = useState(initial?.scorers?.length ? initial.scorers : [{ name: '', team: 'Vasco', goals: 1 }]);
+  const [error, setError] = useState('');
+
+  const dateLabel = new Date(matchKey + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  function updateScorer(i, field, value) {
+    setScorers(scorers.map((s, idx) => {
+      if (idx !== i) return s;
+      const next = { ...s, [field]: value };
+      if (field === 'name') {
+        const match = players.find((p) => p.name.trim().toLowerCase() === value.trim().toLowerCase());
+        if (match) next.team = match.team;
+      }
+      return next;
+    }));
+  }
+  function addScorer() {
+    setScorers([...scorers, { name: '', team: 'Vasco', goals: 1 }]);
+  }
+  function removeScorer(i) {
+    setScorers(scorers.filter((_, idx) => idx !== i));
+  }
+
+  function submit() {
+    if (!winner) { setError('Selecione quem venceu (ou empate).'); return; }
+    const cleanScorers = scorers.filter((s) => s.name.trim()).map((s) => ({ name: s.name.trim(), team: s.team, goals: Number(s.goals) || 1 }));
+    setError('');
+    onSave({
+      winner,
+      vascoScore: vascoScore === '' ? 0 : Number(vascoScore),
+      flaScore: flaScore === '' ? 0 : Number(flaScore),
+      scorers: cleanScorers,
+      registeredAt: new Date().toISOString(),
+    });
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: C.chalkDim, marginBottom: 14, textTransform: 'capitalize' }}>{dateLabel}</div>
+
+      <Field label="Quem venceu">
+        <div style={{ display: 'flex', gap: 8 }}>
+          {['Vasco', 'Empate', 'Flamengo'].map((w) => (
+            <button
+              key={w}
+              onClick={() => setWinner(w)}
+              style={{
+                flex: 1, padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
+                border: winner === w ? `2px solid ${C.green}` : `1px solid ${C.line}`,
+                background: 'rgba(245,241,230,0.05)', color: C.chalk,
+                fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13,
+              }}
+            >
+              {w}
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      <Field label="Placar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <TeamBadge team="Vasco" size={26} />
+            <input style={{ ...inputStyle, textAlign: 'center' }} type="number" inputMode="numeric" min="0" value={vascoScore} onChange={(e) => setVascoScore(e.target.value)} placeholder="0" />
+          </div>
+          <span style={{ color: C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700 }}>x</span>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input style={{ ...inputStyle, textAlign: 'center' }} type="number" inputMode="numeric" min="0" value={flaScore} onChange={(e) => setFlaScore(e.target.value)} placeholder="0" />
+            <TeamBadge team="Flamengo" size={26} />
+          </div>
+        </div>
+      </Field>
+
+      <Field label="Goleadores">
+        {scorers.map((s, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+            <input
+              style={{ ...inputStyle, flex: 1 }}
+              value={s.name}
+              onChange={(e) => updateScorer(i, 'name', e.target.value)}
+              placeholder="Nome do jogador"
+              list="players-datalist"
+            />
+            <select
+              value={s.team}
+              onChange={(e) => updateScorer(i, 'team', e.target.value)}
+              style={{ ...inputStyle, width: 92, padding: '11px 6px' }}
+            >
+              <option value="Vasco">Vasco</option>
+              <option value="Flamengo">Flamengo</option>
+            </select>
+            <input
+              style={{ ...inputStyle, width: 52, textAlign: 'center' }}
+              type="number" inputMode="numeric" min="1"
+              value={s.goals}
+              onChange={(e) => updateScorer(i, 'goals', e.target.value)}
+            />
+            <button onClick={() => removeScorer(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+              <X size={16} color={C.chalkDim} />
+            </button>
+          </div>
+        ))}
+        <datalist id="players-datalist">
+          {players.map((p) => <option key={p.id} value={p.name} />)}
+        </datalist>
+        <button onClick={addScorer} style={{ background: 'none', border: `1px dashed ${C.line}`, borderRadius: 10, padding: '8px 12px', color: C.chalkDim, fontSize: 13, cursor: 'pointer', width: '100%' }}>
+          + Adicionar goleador
+        </button>
+      </Field>
+
+      {error && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <PrimaryButton onClick={submit}>Salvar resultado</PrimaryButton>
+    </div>
   );
 }
 
@@ -534,33 +688,33 @@ function ScoreboardCard({ players, payments, monthKey, monthLabel, config }) {
   const pct = possible > 0 ? Math.min(100, Math.round((total / possible) * 100)) : 0;
 
   return (
-    <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.line}`, background: C.card }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px', borderBottom: `1px solid ${C.line}`, background: C.cardAlt }}>
-        <span style={{ fontSize: 10, letterSpacing: 1.2, color: C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, textTransform: 'uppercase' }}>Arrecadação · {monthLabel}</span>
+    <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.line}`, background: C.card, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: `1px solid ${C.line}`, background: C.cardAlt }}>
+        <span style={{ fontSize: 9, letterSpacing: 1.2, color: C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, textTransform: 'uppercase' }}>Arrecadação · {monthLabel}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: C.green, boxShadow: `0 0 6px ${C.green}` }} />
-          <span style={{ fontSize: 10, color: C.green, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, letterSpacing: 0.5 }}>AO VIVO</span>
+          <span style={{ fontSize: 9, color: C.green, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, letterSpacing: 0.5 }}>AO VIVO</span>
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'stretch', minHeight: 138 }}>
-        <div style={{ width: 84, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 6px', borderRight: `1px solid ${C.line}` }}>
-          <VascoEmblem size={34} />
-          <span style={{ color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 11 }}>VASCO</span>
-          <span style={{ color: C.gold, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13 }}>{fmtBRL(vascoTotal)}</span>
+      <div style={{ display: 'flex', alignItems: 'stretch', minHeight: 96 }}>
+        <div style={{ width: 68, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRight: `1px solid ${C.line}` }}>
+          <VascoEmblem size={24} />
+          <span style={{ color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 9 }}>VASCO</span>
+          <span style={{ color: C.gold, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 11 }}>{fmtBRL(vascoTotal)}</span>
         </div>
 
-        <div style={{ flex: 1, padding: '16px 10px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, color: C.chalk, lineHeight: 1.1, letterSpacing: 1 }}>{fmtBRL(total)}</div>
-          <div style={{ height: 6, borderRadius: 999, background: 'rgba(245,241,230,0.10)', overflow: 'hidden', margin: '8px 4px 2px' }}>
+        <div style={{ flex: 1, padding: '10px 8px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: C.chalk, lineHeight: 1.1, letterSpacing: 1 }}>{fmtBRL(total)}</div>
+          <div style={{ height: 5, borderRadius: 999, background: 'rgba(245,241,230,0.10)', overflow: 'hidden', margin: '5px 4px 2px' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: C.green, transition: 'width .4s' }} />
           </div>
-          <div style={{ fontSize: 11, color: C.chalkDim }}>{pct}% da meta do mês ({fmtBRL(possible)})</div>
+          <div style={{ fontSize: 10, color: C.chalkDim }}>{pct}% da meta ({fmtBRL(possible)})</div>
         </div>
 
-        <div style={{ width: 84, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 6px', borderLeft: `1px solid ${C.line}` }}>
-          <FlamengoEmblem size={34} />
-          <span style={{ color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 11 }}>FLAMENGO</span>
+        <div style={{ width: 68, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderLeft: `1px solid ${C.line}` }}>
+          <FlamengoEmblem size={24} />
+          <span style={{ color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 9 }}>FLAMENGO</span>
           <span style={{ color: C.gold, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13 }}>{fmtBRL(flaTotal)}</span>
         </div>
       </div>
@@ -576,8 +730,7 @@ function Header({ currentUser, onLogout }) {
     <div style={{ padding: 'calc(18px + env(safe-area-inset-top)) 18px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <SuperClassicoMark size={26} />
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 21, color: C.chalk, letterSpacing: 0.5 }}>SUPER CLÁSSICO</span>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.chalk, letterSpacing: 0.5 }}>SUPER CLÁSSICO</span>
         </div>
         <div style={{ fontSize: 12, color: C.chalkDim, marginTop: -2 }}>Quarta-feira · Campo do Furão, Olaria - RJ</div>
       </div>
@@ -602,13 +755,14 @@ function BottomNav({ view, setView }) {
     { key: 'inicio', label: 'Início', icon: Home },
     { key: 'jogadores', label: 'Jogadores', icon: Users },
     { key: 'presenca', label: 'Presença', icon: Calendar },
+    { key: 'placar', label: 'Placar', icon: Trophy },
     { key: 'financeiro', label: 'Financeiro', icon: Wallet },
     { key: 'perfil', label: 'Perfil', icon: User },
   ];
   return (
     <div style={{
       position: 'sticky', bottom: 0, left: 0, right: 0, display: 'flex',
-      background: 'rgba(5,15,10,0.96)', backdropFilter: 'blur(6px)',
+      background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(6px)',
       borderTop: `1px solid ${C.line}`, paddingBottom: 'calc(6px + env(safe-area-inset-bottom))', paddingTop: 6,
     }}>
       {items.map((it) => {
@@ -618,10 +772,10 @@ function BottomNav({ view, setView }) {
           <button
             key={it.key}
             onClick={() => setView(it.key)}
-            style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '6px 0' }}
+            style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '6px 0', minWidth: 0 }}
           >
-            <Icon size={20} color={active ? C.green : C.chalkDim} />
-            <span style={{ fontSize: 10, color: active ? C.green : C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, letterSpacing: 0.3 }}>{it.label}</span>
+            <Icon size={18} color={active ? C.green : C.chalkDim} />
+            <span style={{ fontSize: 9, color: active ? C.green : C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, letterSpacing: 0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{it.label}</span>
           </button>
         );
       })}
@@ -644,6 +798,7 @@ function PlayerRow({ player, onClick, right }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {player.number != null && <span style={{ color: C.gold, fontFamily: "'Bebas Neue',sans-serif", fontSize: 14 }}>#{player.number}</span>}
           <span style={{ color: C.chalk, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{player.name}</span>
           {player.isAdmin === true && <Shield size={13} color={C.gold} />}
         </div>
@@ -679,25 +834,38 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPixSettings, setShowPixSettings] = useState(false);
   const [pixModal, setPixModal] = useState(null);
+  const [resultModal, setResultModal] = useState(null);
 
-  // Assina o documento compartilhado no Firestore: qualquer alteração feita
-  // por qualquer jogador (em qualquer celular) chega aqui automaticamente.
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      SHARED_DOC,
-      (snap) => {
-        setData(snap.exists() ? { ...DEFAULT_DATA, ...snap.data() } : DEFAULT_DATA);
-        setSyncError(false);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Firestore sync failed', err);
-        setSyncError(true);
-        setLoading(false);
+    let unsubscribeSnapshot = null;
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user && !unsubscribeSnapshot) {
+        unsubscribeSnapshot = onSnapshot(
+          SHARED_DOC,
+          (snap) => {
+            setData(snap.exists() ? { ...DEFAULT_DATA, ...snap.data() } : DEFAULT_DATA);
+            setSyncError(false);
+            setLoading(false);
+          },
+          (err) => {
+            console.error('Firestore sync failed', err);
+            setSyncError(true);
+            setLoading(false);
+          }
+        );
       }
-    );
-    return () => unsubscribe();
+    });
+    signInAnonymously(auth).catch((err) => {
+      console.error('Firebase auth failed', err);
+      setSyncError(true);
+      setLoading(false);
+    });
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, []);
 
   async function persist(next) {
@@ -720,7 +888,7 @@ export default function App() {
 
   function saveNewPlayer(form) {
     const player = {
-      id: uid(), name: form.name, phone: form.phone, email: form.email, team: form.team, position: form.position,
+      id: uid(), name: form.name, phone: form.phone, email: form.email, number: form.number, team: form.team, position: form.position,
       username: form.username, passwordHash: form.passwordHash, salt: form.salt,
       isAdmin: form.isAdmin === true, createdAt: new Date().toISOString(),
     };
@@ -736,9 +904,24 @@ export default function App() {
   }
 
   function saveEditedPlayer(form) {
+    if (form.isAdmin === 'needs-verify') {
+      setPendingAdminClaim({
+        player: { ...editingPlayer, ...form },
+        next: {
+          ...data,
+          players: data.players.map((p) => p.id === editingPlayer.id ? {
+            ...p, name: form.name, phone: form.phone, email: form.email, number: form.number, team: form.team, position: form.position,
+            username: form.username, passwordHash: form.passwordHash, salt: form.salt,
+          } : p),
+        },
+        editMode: true,
+      });
+      return;
+    }
     const players = data.players.map((p) => p.id === editingPlayer.id ? {
-      ...p, name: form.name, phone: form.phone, email: form.email, team: form.team, position: form.position,
+      ...p, name: form.name, phone: form.phone, email: form.email, number: form.number, team: form.team, position: form.position,
       username: form.username, passwordHash: form.passwordHash, salt: form.salt,
+      isAdmin: form.isAdmin === true ? true : p.isAdmin,
     } : p);
     persist({ ...data, players });
     setEditingPlayer(null);
@@ -746,13 +929,17 @@ export default function App() {
 
   function confirmAdminClaim(pin, setError) {
     if (pin !== data.config.adminPin) { setError('PIN incorreto.'); return; }
-    const { player, next } = pendingAdminClaim;
+    const { player, next, editMode } = pendingAdminClaim;
     const players = next.players.map((p) => p.id === player.id ? { ...p, isAdmin: true } : p);
     const finalData = { ...next, players };
     persist(finalData);
-    setSession(player.id);
     setPendingAdminClaim(null);
-    setShowRegister(false);
+    if (editMode) {
+      setEditingPlayer(null);
+    } else {
+      setSession(player.id);
+      setShowRegister(false);
+    }
   }
 
   function removePlayer(id) {
@@ -779,7 +966,15 @@ export default function App() {
     const key = mKey || monthKey;
     const current = data.payments[playerId]?.[key];
     const paid = !(current?.paid);
-    const entry = { paid, amount: data.config.monthlyFee, paidAt: paid ? new Date().toISOString() : null };
+    const entry = { paid, amount: data.config.monthlyFee, paidAt: paid ? new Date().toISOString() : null, claimed: paid ? current?.claimed : false, claimedAt: current?.claimedAt || null };
+    persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
+  }
+
+  function claimPayment(playerId, mKey) {
+    const key = mKey || monthKey;
+    const current = data.payments[playerId]?.[key];
+    if (current?.paid) return;
+    const entry = { paid: false, amount: data.config.monthlyFee, claimed: true, claimedAt: new Date().toISOString() };
     persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
   }
 
@@ -787,9 +982,25 @@ export default function App() {
     persist({ ...data, config: { ...data.config, monthlyFee: newFee } });
   }
 
+  function updatePixKey(newKey) {
+    persist({ ...data, config: { ...data.config, pixKey: newKey } });
+  }
+
+  function saveResult(matchKey, result) {
+    if (!isAdmin) return;
+    persist({ ...data, results: { ...data.results, [matchKey]: result } });
+    setResultModal(null);
+  }
+
   if (loading) {
     return (
-      <div style={{ minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bgGrad, borderRadius: 24 }}>
+      <div className="furao-shell" style={{ maxWidth: 420, margin: '0 auto', height: 844, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bgGrad, borderRadius: 24 }}>
+        <style>{`
+          .furao-shell { height: 844px; }
+          @media (max-width: 480px) {
+            .furao-shell { max-width: 100% !important; width: 100% !important; height: 100dvh !important; border-radius: 0 !important; }
+          }
+        `}</style>
         <span style={{ color: C.chalkDim, fontFamily: "'Rajdhani',sans-serif" }}>Carregando…</span>
       </div>
     );
@@ -797,11 +1008,18 @@ export default function App() {
 
   if (syncError) {
     return (
-      <div style={{ minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bgGrad, borderRadius: 24, padding: 28, textAlign: 'center' }}>
+      <div className="furao-shell" style={{ maxWidth: 420, margin: '0 auto', height: 844, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bgGrad, borderRadius: 24, padding: 28, textAlign: 'center' }}>
+        <style>{`
+          .furao-shell { height: 844px; }
+          @media (max-width: 480px) {
+            .furao-shell { max-width: 100% !important; width: 100% !important; height: 100dvh !important; border-radius: 0 !important; }
+          }
+        `}</style>
         <div>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: C.chalk, marginBottom: 8 }}>Banco de dados não configurado</div>
           <div style={{ color: C.chalkDim, fontSize: 13, lineHeight: 1.5 }}>
-            Preencha as chaves do Firebase em <code>src/firebase.js</code> (veja o README.md) para o app salvar e sincronizar os dados entre os celulares.
+            Confira se preencheu as chaves do Firebase em <code>src/firebase.js</code> e se ativou o
+            provedor de login <b>Anônimo</b> em Authentication → Sign-in method (veja o README.md).
           </div>
         </div>
       </div>
@@ -814,16 +1032,16 @@ export default function App() {
   const filteredPlayers = data.players.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="furao-shell" style={{ maxWidth: 420, margin: '0 auto', background: C.bgGrad, minHeight: 600, borderRadius: 24, overflow: 'hidden', fontFamily: "'Inter',sans-serif", boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${C.line}` }}>
+    <div className="furao-shell" style={{ maxWidth: 420, margin: '0 auto', background: C.bgGrad, height: 844, borderRadius: 24, overflow: 'hidden', fontFamily: "'Inter',sans-serif", boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${C.line}` }}>
       <style>{`
         ${FONT_IMPORT}
         html, body { margin: 0; padding: 0; }
-        .furao-shell { min-height: 100dvh; }
+        .furao-shell { height: 844px; }
         @media (max-width: 480px) {
           .furao-shell {
             max-width: 100% !important;
             width: 100% !important;
-            min-height: 100dvh !important;
+            height: 100dvh !important;
             border-radius: 0 !important;
             border: none !important;
             box-shadow: none !important;
@@ -836,11 +1054,12 @@ export default function App() {
       {!currentUser ? (
         <LoginScreen
           players={data.players}
+          results={data.results}
           onLogin={(id) => setSession(id)}
           onNew={() => setShowRegister(true)}
         />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 600 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <Header currentUser={currentUser} onLogout={() => setSession(null)} />
           <div style={{ flex: 1, padding: '0 18px 16px', overflowY: 'auto' }}>
             {view === 'inicio' && (
@@ -849,13 +1068,13 @@ export default function App() {
                 nextMatch={nextMatch} attendanceArr={attendanceArr}
                 confirmedVasco={confirmedVasco} confirmedFla={confirmedFla}
                 currentUser={currentUser} toggleAttendance={toggleAttendance}
-                setView={setView}
+                setView={setView} isAdmin={isAdmin}
               />
             )}
             {view === 'jogadores' && (
               <JogadoresView
                 players={filteredPlayers} search={search} setSearch={setSearch}
-                onOpen={setDetailPlayer} onNew={() => setShowRegister(true)}
+                onOpen={setDetailPlayer} onNew={() => setShowRegister(true)} isAdmin={isAdmin}
               />
             )}
             {view === 'presenca' && (
@@ -863,7 +1082,11 @@ export default function App() {
                 nextMatch={nextMatch} data={data} attendanceArr={attendanceArr}
                 confirmedVasco={confirmedVasco} confirmedFla={confirmedFla}
                 currentUser={currentUser} toggleAttendance={toggleAttendance}
+                isAdmin={isAdmin} onOpenResult={setResultModal}
               />
+            )}
+            {view === 'placar' && (
+              <PlacarView data={data} isAdmin={isAdmin} onOpenResult={setResultModal} />
             )}
             {view === 'financeiro' && isAdmin && (
               <FinanceiroView
@@ -876,7 +1099,12 @@ export default function App() {
               <TeamFinanceiroView
                 currentUser={currentUser} data={data} monthKey={monthKey} monthLabel={monthLabel}
                 monthOffset={monthOffset} setMonthOffset={setMonthOffset}
-                onPay={(amount, mLabel) => setPixModal({ amount, description: `Mensalidade ${mLabel} - ${currentUser.name}`, txid: `SUPERCLASSICO${monthKeyFor(new Date()).replace('-', '')}` })}
+                onPay={(amount, mLabel) => setPixModal({
+                  amount, description: `Mensalidade ${mLabel} - ${currentUser.name}`,
+                  txid: `SUPERCLASSICO${monthKeyFor(new Date()).replace('-', '')}`,
+                  pixKey: data.config.pixKey,
+                  onConfirmPaid: () => claimPayment(currentUser.id, monthKey),
+                })}
               />
             )}
             {view === 'perfil' && (
@@ -885,7 +1113,8 @@ export default function App() {
                 onLogout={() => setSession(null)}
                 onEdit={() => setEditingPlayer(currentUser)}
                 onSettings={() => setShowSettings(true)}
-                onShowPix={() => setPixModal({ amount: 0, description: `Contribuição - ${currentUser.name}`, txid: 'SUPERCLASSICO' })}
+                onPixSettings={() => setShowPixSettings(true)}
+                onShowPix={() => setPixModal({ amount: 0, description: `Contribuição - ${currentUser.name}`, txid: 'SUPERCLASSICO', pixKey: data.config.pixKey })}
               />
             )}
           </div>
@@ -901,7 +1130,7 @@ export default function App() {
 
       {editingPlayer && (
         <Modal title="Editar jogador" onClose={() => setEditingPlayer(null)}>
-          <PlayerForm initial={editingPlayer} players={data.players.filter((p) => p.id !== editingPlayer.id)} hasAdmin={data.players.some((p) => p.isAdmin)} onCancel={() => setEditingPlayer(null)} onSave={saveEditedPlayer} />
+          <PlayerForm initial={editingPlayer} players={data.players.filter((p) => p.id !== editingPlayer.id)} hasAdmin={data.players.some((p) => p.isAdmin)} actingIsAdmin={isAdmin} onCancel={() => setEditingPlayer(null)} onSave={saveEditedPlayer} />
         </Modal>
       )}
 
@@ -938,8 +1167,26 @@ export default function App() {
         </Modal>
       )}
 
+      {showPixSettings && (
+        <Modal title="Chave PIX" onClose={() => setShowPixSettings(false)}>
+          <PixSettingsPanel config={data.config} onSave={(key) => { updatePixKey(key); setShowPixSettings(false); }} />
+        </Modal>
+      )}
+
       {pixModal && (
-        <PixModal amount={pixModal.amount} description={pixModal.description} txid={pixModal.txid} onClose={() => setPixModal(null)} />
+        <PixModal amount={pixModal.amount} description={pixModal.description} txid={pixModal.txid} pixKey={pixModal.pixKey} onConfirmPaid={pixModal.onConfirmPaid} onClose={() => setPixModal(null)} />
+      )}
+
+      {resultModal && (
+        <Modal title="Resultado da partida" onClose={() => setResultModal(null)}>
+          <MatchResultForm
+            matchKey={resultModal}
+            initial={data.results[resultModal]}
+            players={data.players}
+            onCancel={() => setResultModal(null)}
+            onSave={(result) => saveResult(resultModal, result)}
+          />
+        </Modal>
       )}
     </div>
   );
@@ -948,14 +1195,18 @@ export default function App() {
 /* ---------------------------------------------------------
    LOGIN SCREEN
 --------------------------------------------------------- */
-function LoginScreen({ players, onLogin, onNew }) {
+function LoginScreen({ players, results, onLogin, onNew }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
 
+  const monthKey = monthKeyFor(new Date());
+  const monthLabel = capitalize(new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }));
+  const champion = getMonthChampion(results, monthKey);
+
   async function submit() {
-    const u = username.trim().toLowerCase();
+    const u = username.trim().toLowerCase().replace(/\s+/g, '');
     if (!u || !password) { setError('Preencha usuário e senha.'); return; }
     const player = players.find((p) => p.username?.toLowerCase() === u);
     if (!player) { setError('Usuário não encontrado.'); return; }
@@ -968,38 +1219,43 @@ function LoginScreen({ players, onLogin, onNew }) {
   }
 
   return (
-    <div style={{ padding: 'calc(28px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ textAlign: 'center', marginBottom: 14 }}>
-        <SuperClassicoLogo size={200} />
-        <div style={{ fontSize: 13, color: C.chalkDim, marginTop: 4 }}>Quarta-feira · Campo do Furão, Olaria - RJ</div>
+    <div style={{ padding: 'calc(28px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 24 }}>
+        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, color: C.chalk, letterSpacing: 1 }}>SUPER CLÁSSICO</span>
+        <div style={{ fontSize: 13, color: C.chalkDim, marginTop: 10 }}>
+          Quarta-feira · 20h · Campo do Furão, Olaria - RJ <Countdown target={getNextMatch()} discreet /></div>
       </div>
 
-      {players.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16 }}>
-          {players.slice(0, 10).map((p) => (
-            <button key={p.id} onClick={() => setUsername(p.username || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 56 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 999, background: TEAM_STYLE[p.team].bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${C.line}` }}>
-                <span style={{ color: TEAM_STYLE[p.team].text, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>{p.name.charAt(0).toUpperCase()}</span>
-              </div>
-              <span style={{ fontSize: 9, color: C.chalkDim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 56 }}>{p.name.split(' ')[0]}</span>
-            </button>
-          ))}
+      {champion.totalGames > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 14px', marginBottom: 20 }}>
+          <Trophy size={16} color={C.gold} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {champion.leader ? (
+              <span style={{ fontSize: 12.5, color: C.chalk }}>
+                <b style={{ color: C.gold }}>{champion.leader}</b> lidera o mês · Vasco {champion.vascoWins} x {champion.flaWins} Flamengo
+              </span>
+            ) : (
+              <span style={{ fontSize: 12.5, color: C.chalk }}>Empate parcial · Vasco {champion.vascoWins} x {champion.flaWins} Flamengo</span>
+            )}
+            <div style={{ fontSize: 10, color: C.chalkDim, marginTop: 1 }}>Parcial de {monthLabel} · mês ainda em andamento</div>
+          </div>
         </div>
       )}
 
-      <Field label="Usuário">
-        <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="seu usuário" autoCapitalize="none" />
-      </Field>
-      <Field label="Senha">
-        <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="sua senha" onKeyDown={(e) => e.key === 'Enter' && submit()} />
-      </Field>
-      {error && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <Field label="Usuário">
+          <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="seu usuário" autoCapitalize="none" />
+        </Field>
+        <Field label="Senha">
+          <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="sua senha" onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        </Field>
+        {error && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
 
-      <PrimaryButton onClick={submit} disabled={checking}>
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Lock size={15} /> Entrar</span>
-      </PrimaryButton>
+        <PrimaryButton onClick={submit} disabled={checking}>
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Lock size={15} /> Entrar</span>
+        </PrimaryButton>
+      </div>
 
-      <div style={{ flex: 1 }} />
       <button onClick={onNew} style={{ marginTop: 16, background: 'none', border: `1px solid ${C.line}`, borderRadius: 10, padding: '13px 16px', color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
         + Cadastrar novo jogador
       </button>
@@ -1010,49 +1266,113 @@ function LoginScreen({ players, onLogin, onNew }) {
 /* ---------------------------------------------------------
    INÍCIO / DASHBOARD
 --------------------------------------------------------- */
-function InicioView({ data, monthKey, monthLabel, nextMatch, attendanceArr, confirmedVasco, confirmedFla, currentUser, toggleAttendance, setView }) {
+function Countdown({ target, discreet, compact }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const diff = target.getTime() - now;
+
+  if (discreet) {
+    if (diff <= 0) {
+      return <span style={{ fontSize: 11, color: C.chalkDim }}>· bola rolando (ou já rolou) hoje</span>;
+    }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff / 3600000) % 24);
+    const m = Math.floor((diff / 60000) % 60);
+    const parts = d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}min` : `${m}min`;
+    return <span style={{ fontSize: 11, color: C.chalkDim }}>· começa em {parts}</span>;
+  }
+
+  if (diff <= 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: compact ? '6px 0' : '10px 0' }}>
+        <span style={{ width: 8, height: 8, borderRadius: 999, background: C.danger, boxShadow: `0 0 6px ${C.danger}` }} />
+        <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: compact ? 12 : 14, color: C.chalk }}>Bola rolando (ou já rolou) hoje!</span>
+      </div>
+    );
+  }
+
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff / 3600000) % 24);
+  const minutes = Math.floor((diff / 60000) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+  const units = [[days, 'dias'], [hours, 'hrs'], [minutes, 'min'], [seconds, 'seg']];
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: compact ? 6 : 10, padding: compact ? '6px 0 3px' : '10px 0 4px' }}>
+      {units.map(([value, label]) => (
+        <div key={label} style={{ textAlign: 'center', minWidth: compact ? 36 : 46 }}>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: compact ? 18 : 26, color: C.gold, lineHeight: 1 }}>{String(value).padStart(2, '0')}</div>
+          <div style={{ fontSize: 8, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 }}>{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InicioView({ data, monthKey, monthLabel, nextMatch, attendanceArr, confirmedVasco, confirmedFla, currentUser, toggleAttendance, setView, isAdmin }) {
   const iConfirmed = attendanceArr.includes(currentUser.id);
   const dateLabel = capitalize(nextMatch.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }));
 
   return (
     <div>
-      <div style={{ height: 4 }} />
-      <ScoreboardCard players={data.players} payments={data.payments} monthKey={monthKey} monthLabel={monthLabel} config={data.config} />
+      <div style={{ height: 2 }} />
 
-      <div style={{ marginTop: 16, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.card, border: `1px solid ${C.gold}`, borderRadius: 10, padding: '7px 12px', marginBottom: 10 }}>
+        <Trophy size={15} color={C.gold} style={{ flexShrink: 0 }} />
+        <span style={{ fontSize: 12, color: C.chalk }}>
+          Campeão de {LAST_SEASON_CHAMPION.year}:
+        </span>
+        <TeamBadge team={LAST_SEASON_CHAMPION.team} size={19} />
+        <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12, color: C.gold }}>{LAST_SEASON_CHAMPION.team}</span>
+      </div>
+
+      {isAdmin && (
+        <ScoreboardCard players={data.players} payments={data.payments} monthKey={monthKey} monthLabel={monthLabel} config={data.config} />
+      )}
+
+      <div style={{ marginTop: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div>
-            <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>Próximo jogo</div>
-            <div style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 18, color: C.chalk }}>{dateLabel} · 20h</div>
+            <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>Próximo jogo</div>
+            <div style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 16, color: C.chalk }}>{dateLabel} · 20h</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: C.gold }}>{attendanceArr.length}</div>
-            <div style={{ fontSize: 10, color: C.chalkDim }}>confirmados</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: C.gold }}>{attendanceArr.length}</div>
+            <div style={{ fontSize: 9, color: C.chalkDim }}>confirmados</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, fontSize: 12, color: C.chalkDim }}>
+
+        <div style={{ borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}` }}>
+          <Countdown target={nextMatch} compact />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, marginBottom: 8, fontSize: 11, color: C.chalkDim }}>
           <span>Vasco: <b style={{ color: C.chalk }}>{confirmedVasco.length}</b></span>
           <span>·</span>
           <span>Flamengo: <b style={{ color: C.chalk }}>{confirmedFla.length}</b></span>
         </div>
-        <PrimaryButton onClick={() => toggleAttendance(currentUser.id)} danger={iConfirmed}>
+        <PrimaryButton onClick={() => toggleAttendance(currentUser.id)} danger={iConfirmed} style={{ padding: '10px 16px' }}>
           {iConfirmed ? 'Cancelar presença' : 'Confirmar presença'}
         </PrimaryButton>
-        <button onClick={() => setView('presenca')} style={{ width: '100%', marginTop: 8, background: 'none', border: 'none', color: C.chalkDim, fontSize: 12, cursor: 'pointer' }}>
+        <button onClick={() => setView('presenca')} style={{ width: '100%', marginTop: 6, background: 'none', border: 'none', color: C.chalkDim, fontSize: 11, cursor: 'pointer' }}>
           Ver lista completa →
         </button>
       </div>
 
-      <div style={{ marginTop: 16, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
-        <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 8 }}>Elenco</div>
+      <div style={{ marginTop: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 12 }}>
+        <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Elenco</div>
         <div style={{ display: 'flex', gap: 18 }}>
           <div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: C.chalk }}>{data.players.filter(p => p.team === 'Vasco').length}</div>
-            <div style={{ fontSize: 11, color: C.chalkDim }}>Vasco</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.chalk }}>{data.players.filter(p => p.team === 'Vasco').length}</div>
+            <div style={{ fontSize: 10, color: C.chalkDim }}>Vasco</div>
           </div>
           <div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: C.chalk }}>{data.players.filter(p => p.team === 'Flamengo').length}</div>
-            <div style={{ fontSize: 11, color: C.chalkDim }}>Flamengo</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.chalk }}>{data.players.filter(p => p.team === 'Flamengo').length}</div>
+            <div style={{ fontSize: 10, color: C.chalkDim }}>Flamengo</div>
           </div>
         </div>
       </div>
@@ -1063,7 +1383,7 @@ function InicioView({ data, monthKey, monthLabel, nextMatch, attendanceArr, conf
 /* ---------------------------------------------------------
    JOGADORES
 --------------------------------------------------------- */
-function JogadoresView({ players, search, setSearch, onOpen, onNew }) {
+function JogadoresView({ players, search, setSearch, onOpen, onNew, isAdmin }) {
   const vasco = players.filter((p) => p.team === 'Vasco');
   const fla = players.filter((p) => p.team === 'Flamengo');
   return (
@@ -1090,7 +1410,7 @@ function JogadoresView({ players, search, setSearch, onOpen, onNew }) {
         </div>
       ))}
 
-      <PrimaryButton onClick={onNew}>+ Cadastrar novo jogador</PrimaryButton>
+      {isAdmin && <PrimaryButton onClick={onNew}>+ Cadastrar novo jogador</PrimaryButton>}
     </div>
   );
 }
@@ -1104,6 +1424,7 @@ function PlayerDetail({ player, isAdmin, onEdit, onDelete }) {
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {player.number != null && <span style={{ color: C.gold, fontFamily: "'Bebas Neue',sans-serif", fontSize: 16 }}>#{player.number}</span>}
             <span style={{ color: C.chalk, fontWeight: 700, fontSize: 16 }}>{player.name}</span>
             {player.isAdmin && <Shield size={14} color={C.gold} />}
           </div>
@@ -1140,10 +1461,12 @@ function PlayerDetail({ player, isAdmin, onEdit, onDelete }) {
 /* ---------------------------------------------------------
    PRESENÇA
 --------------------------------------------------------- */
-function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirmedFla, currentUser, toggleAttendance }) {
+function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirmedFla, currentUser, toggleAttendance, isAdmin, onOpenResult }) {
   const iConfirmed = attendanceArr.includes(currentUser.id);
   const dateLabel = capitalize(nextMatch.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }));
-  const pastKeys = Object.keys(data.attendance).filter(k => k !== matchKeyFor(nextMatch)).sort().reverse().slice(0, 6);
+  const nextKey = matchKeyFor(nextMatch);
+  const nextResult = data.results[nextKey];
+  const pastKeys = Object.keys(data.attendance).filter(k => k !== nextKey).sort().reverse().slice(0, 6);
 
   return (
     <div>
@@ -1153,6 +1476,11 @@ function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirme
         <PrimaryButton onClick={() => toggleAttendance(currentUser.id)} danger={iConfirmed}>
           {iConfirmed ? 'Cancelar minha presença' : 'Confirmar minha presença'}
         </PrimaryButton>
+        {isAdmin && (
+          <button onClick={() => onOpenResult(nextKey)} style={{ width: '100%', marginTop: 10, background: 'none', border: `1px dashed ${C.line}`, borderRadius: 10, padding: '10px 12px', color: C.chalkDim, fontSize: 13, cursor: 'pointer' }}>
+            {nextResult ? `Resultado: ${nextResult.winner === 'Empate' ? 'Empate' : nextResult.winner} ${nextResult.vascoScore}x${nextResult.flaScore} · editar` : 'Registrar resultado desta partida'}
+          </button>
+        )}
       </div>
 
       {[['Vasco', confirmedVasco], ['Flamengo', confirmedFla]].map(([team, list]) => (
@@ -1175,13 +1503,204 @@ function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirme
       {pastKeys.length > 0 && (
         <div>
           <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>Jogos anteriores</div>
-          {pastKeys.map((k) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 4px', borderBottom: `1px solid ${C.line}`, fontSize: 13, color: C.chalkDim }}>
-              <span>{new Date(k + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-              <span>{(data.attendance[k] || []).length} confirmados</span>
-            </div>
-          ))}
+          {pastKeys.map((k) => {
+            const r = data.results[k];
+            return (
+              <div key={k} style={{ padding: '9px 4px', borderBottom: `1px solid ${C.line}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: C.chalkDim }}>
+                  <span>{new Date(k + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                  <span>{(data.attendance[k] || []).length} confirmados</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  {r ? (
+                    <span style={{ fontSize: 12, color: C.gold, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700 }}>
+                      {r.winner === 'Empate' ? 'Empate' : `Vitória do ${r.winner}`} · Vasco {r.vascoScore} x {r.flaScore} Flamengo
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: C.chalkDim }}>Resultado não registrado</span>
+                  )}
+                  {isAdmin && (
+                    <button onClick={() => onOpenResult(k)} style={{ background: 'none', border: 'none', color: C.chalkDim, cursor: 'pointer', padding: 2 }}>
+                      <Pencil size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   PLACAR — vitórias do mês e resultado de cada partida
+--------------------------------------------------------- */
+function getMonthTopScorers(results, monthKey) {
+  const tally = {};
+  Object.entries(results || {}).forEach(([matchKey, r]) => {
+    if (!matchKey.startsWith(monthKey)) return;
+    (r.scorers || []).forEach((s) => {
+      const key = `${s.name.trim().toLowerCase()}|${s.team}`;
+      if (!tally[key]) tally[key] = { name: s.name.trim(), team: s.team, goals: 0 };
+      tally[key].goals += Number(s.goals) || 0;
+    });
+  });
+  return Object.values(tally).sort((a, b) => b.goals - a.goals);
+}
+
+/* ---------------------------------------------------------
+   PLACAR — vitórias do mês e resultado de cada partida
+--------------------------------------------------------- */
+function PlacarView({ data, isAdmin, onOpenResult }) {
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [tab, setTab] = useState('vitorias');
+  const monthDate = useMemo(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + monthOffset); return d; }, [monthOffset]);
+  const monthKey = monthKeyFor(monthDate);
+  const monthLabel = capitalize(monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }));
+  const champion = getMonthChampion(data.results, monthKey);
+  const topScorers = useMemo(() => getMonthTopScorers(data.results, monthKey), [data.results, monthKey]);
+  const wednesdays = useMemo(() => getWednesdaysInMonth(monthDate.getFullYear(), monthDate.getMonth()), [monthDate]);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <button onClick={() => setMonthOffset(monthOffset - 1)} style={{ background: 'rgba(245,241,230,0.08)', border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ChevronLeft size={16} color={C.chalk} />
+        </button>
+        <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 16, color: C.chalk }}>{monthLabel}</span>
+        <button onClick={() => setMonthOffset(monthOffset + 1)} style={{ background: 'rgba(245,241,230,0.08)', border: 'none', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ChevronRight size={16} color={C.chalk} />
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: C.cardAlt, borderRadius: 10, padding: 4 }}>
+        {[['vitorias', 'Vitórias'], ['partidas', 'Partidas'], ['artilharia', 'Artilharia']].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              flex: 1, padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: tab === key ? C.green : 'transparent',
+              color: tab === key ? '#052015' : C.chalkDim,
+              fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12.5,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'vitorias' && (
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 18 }}>
+        <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
+          Vitórias do mês
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
+          <div style={{ textAlign: 'center', opacity: champion.leader === 'Flamengo' ? 0.55 : 1 }}>
+            <TeamBadge team="Vasco" size={36} />
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: champion.leader === 'Vasco' ? C.gold : C.chalk, marginTop: 6 }}>{champion.vascoWins}</div>
+          </div>
+          <span style={{ color: C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 16 }}>x</span>
+          <div style={{ textAlign: 'center', opacity: champion.leader === 'Vasco' ? 0.55 : 1 }}>
+            <TeamBadge team="Flamengo" size={36} />
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 34, color: champion.leader === 'Flamengo' ? C.gold : C.chalk, marginTop: 6 }}>{champion.flaWins}</div>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          {champion.totalGames === 0 ? (
+            <span style={{ fontSize: 12, color: C.chalkDim }}>Nenhum resultado registrado neste mês ainda.</span>
+          ) : champion.leader ? (
+            <span style={{ fontSize: 13, color: C.gold, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700 }}>
+              {champion.leader} lidera o mês {champion.empates > 0 ? `· ${champion.empates} empate(s)` : ''}
+            </span>
+          ) : (
+            <span style={{ fontSize: 13, color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700 }}>Empate na disputa do mês</span>
+          )}
+        </div>
+      </div>
+      )}
+
+      {tab === 'artilharia' && (
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 10 }}>
+          Artilharia do mês
+        </div>
+        {topScorers.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.chalkDim, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, textAlign: 'center' }}>
+            Nenhum gol registrado neste mês ainda.
+          </div>
+        ) : (
+          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, overflow: 'hidden' }}>
+            {topScorers.map((s, i) => (
+              <div key={`${s.name}-${s.team}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < topScorers.length - 1 ? `1px solid ${C.line}` : 'none' }}>
+                <span style={{ width: 22, textAlign: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: i === 0 ? C.gold : C.chalkDim }}>{i + 1}º</span>
+                <TeamBadge team={s.team} size={22} />
+                <span style={{ flex: 1, color: C.chalk, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: C.gold }}>{s.goals}</span>
+                <span style={{ fontSize: 10, color: C.chalkDim }}>{s.goals === 1 ? 'gol' : 'gols'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      )}
+
+      {tab === 'partidas' && (
+      <div>
+      <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>
+        Partidas do mês
+      </div>
+
+      {wednesdays.length === 0 ? (
+        <div style={{ fontSize: 13, color: C.chalkDim }}>Nenhuma quarta-feira neste mês.</div>
+      ) : wednesdays.map((d) => {
+        const key = matchKeyFor(d);
+        const r = data.results[key];
+        const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        const isFuture = d.getTime() > today.getTime();
+        return (
+          <div key={key} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: C.chalkDim, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700 }}>Quarta, {dateLabel}</span>
+              {isAdmin && !isFuture && (
+                <button onClick={() => onOpenResult(key)} style={{ background: 'none', border: 'none', color: C.chalkDim, cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Pencil size={12} /> <span style={{ fontSize: 11 }}>{r ? 'editar' : 'registrar'}</span>
+                </button>
+              )}
+            </div>
+
+            {r ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, margin: '10px 0' }}>
+                  <TeamBadge team="Vasco" size={24} />
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: C.chalk }}>{r.vascoScore} x {r.flaScore}</span>
+                  <TeamBadge team="Flamengo" size={24} />
+                </div>
+                <div style={{ textAlign: 'center', fontSize: 12, color: C.gold, fontWeight: 700, fontFamily: "'Rajdhani',sans-serif", marginBottom: r.scorers?.length ? 8 : 0 }}>
+                  {r.winner === 'Empate' ? 'Empate' : `Vitória do ${r.winner}`}
+                </div>
+                {r.scorers?.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {r.scorers.map((s, i) => (
+                      <span key={i} style={{ fontSize: 11, color: C.chalkDim, background: 'rgba(245,241,230,0.05)', borderRadius: 6, padding: '3px 7px' }}>
+                        ⚽ {s.name} {s.goals > 1 ? `(${s.goals})` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: C.chalkDim, marginTop: 6 }}>
+                {isFuture ? 'Ainda não aconteceu.' : 'Resultado não registrado.'}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      </div>
       )}
     </div>
   );
@@ -1193,6 +1712,7 @@ function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirme
 function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffset, isAdmin, togglePayment }) {
   const total = data.players.reduce((acc, p) => acc + (data.payments[p.id]?.[monthKey]?.paid ? Number(data.payments[p.id][monthKey].amount || 0) : 0), 0);
   const pendentes = data.players.filter((p) => !data.payments[p.id]?.[monthKey]?.paid);
+  const aguardando = data.players.filter((p) => data.payments[p.id]?.[monthKey]?.claimed && !data.payments[p.id]?.[monthKey]?.paid);
 
   return (
     <div>
@@ -1215,6 +1735,12 @@ function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffse
           <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', fontWeight: 700 }}>Pendentes</div>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: C.danger }}>{pendentes.length}</div>
         </div>
+        {aguardando.length > 0 && (
+          <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>
+            <div style={{ fontSize: 10, color: C.chalkDim, textTransform: 'uppercase', fontWeight: 700 }}>Aguardando</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: C.gold }}>{aguardando.length}</div>
+          </div>
+        )}
       </div>
 
       <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, marginBottom: 6 }}>
@@ -1224,7 +1750,9 @@ function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffse
       {data.players.length === 0 ? (
         <div style={{ fontSize: 13, color: C.chalkDim, marginTop: 12 }}>Cadastre jogadores para começar a controlar o financeiro.</div>
       ) : data.players.map((p) => {
-        const paid = data.payments[p.id]?.[monthKey]?.paid;
+        const entry = data.payments[p.id]?.[monthKey];
+        const paid = entry?.paid;
+        const claimed = entry?.claimed && !paid;
         return (
           <div key={p.id} style={{ borderBottom: `1px solid ${C.line}` }}>
             <PlayerRow
@@ -1232,8 +1760,10 @@ function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffse
               onClick={() => togglePayment(p.id, monthKey)}
               right={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: paid ? C.success : C.chalkDim, fontWeight: 700 }}>{paid ? 'Pago' : 'Pendente'}</span>
-                  {paid ? <CheckCircle2 size={18} color={C.success} /> : <Circle size={18} color={C.chalkDim} />}
+                  <span style={{ fontSize: 11, color: paid ? C.success : claimed ? C.gold : C.chalkDim, fontWeight: 700 }}>
+                    {paid ? 'Pago' : claimed ? 'Aguardando confirmação' : 'Pendente'}
+                  </span>
+                  {paid ? <CheckCircle2 size={18} color={C.success} /> : claimed ? <Clock size={18} color={C.gold} /> : <Circle size={18} color={C.chalkDim} />}
                 </div>
               }
             />
@@ -1253,7 +1783,9 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
   const teammates = data.players.filter((p) => p.team === currentUser.team);
   const total = teammates.reduce((acc, p) => acc + (data.payments[p.id]?.[monthKey]?.paid ? Number(data.payments[p.id][monthKey].amount || 0) : 0), 0);
   const pendentes = teammates.filter((p) => !data.payments[p.id]?.[monthKey]?.paid);
-  const myPaid = data.payments[currentUser.id]?.[monthKey]?.paid;
+  const myEntry = data.payments[currentUser.id]?.[monthKey];
+  const myPaid = myEntry?.paid;
+  const myClaimed = myEntry?.claimed && !myPaid;
 
   return (
     <div>
@@ -1283,11 +1815,17 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
         </div>
       </div>
 
-      {!myPaid && (
+      {!myPaid && !myClaimed && (
         <div style={{ marginBottom: 16 }}>
           <PrimaryButton onClick={() => onPay(data.config.monthlyFee, monthLabel)}>
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><QrCode size={15} /> Pagar minha mensalidade ({fmtBRL(data.config.monthlyFee)})</span>
           </PrimaryButton>
+        </div>
+      )}
+      {myClaimed && (
+        <div style={{ marginBottom: 16, background: 'rgba(255,197,61,0.08)', border: `1px solid ${C.gold}`, borderRadius: 10, padding: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Clock size={16} color={C.gold} />
+          <span style={{ fontSize: 13, color: C.chalk }}>Você avisou que pagou — aguardando o administrador confirmar.</span>
         </div>
       )}
 
@@ -1296,7 +1834,9 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
       </div>
 
       {teammates.map((p) => {
-        const paid = data.payments[p.id]?.[monthKey]?.paid;
+        const entry = data.payments[p.id]?.[monthKey];
+        const paid = entry?.paid;
+        const claimed = entry?.claimed && !paid;
         const isMe = p.id === currentUser.id;
         return (
           <div key={p.id} style={{ borderBottom: `1px solid ${C.line}`, background: isMe ? 'rgba(255,197,61,0.06)' : 'transparent', borderRadius: isMe ? 10 : 0 }}>
@@ -1304,8 +1844,10 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
               player={p}
               right={
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: paid ? C.success : C.chalkDim, fontWeight: 700 }}>{paid ? 'Pago' : 'Pendente'}</span>
-                  {paid ? <CheckCircle2 size={18} color={C.success} /> : <Circle size={18} color={C.chalkDim} />}
+                  <span style={{ fontSize: 11, color: paid ? C.success : claimed ? C.gold : C.chalkDim, fontWeight: 700 }}>
+                    {paid ? 'Pago' : claimed ? 'Aguardando' : 'Pendente'}
+                  </span>
+                  {paid ? <CheckCircle2 size={18} color={C.success} /> : claimed ? <Clock size={18} color={C.gold} /> : <Circle size={18} color={C.chalkDim} />}
                 </span>
               }
             />
@@ -1323,7 +1865,7 @@ function TeamFinanceiroView({ currentUser, data, monthKey, monthLabel, monthOffs
 /* ---------------------------------------------------------
    PERFIL
 --------------------------------------------------------- */
-function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onShowPix }) {
+function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onPixSettings, onShowPix }) {
   const ts = TEAM_STYLE[currentUser.team];
   return (
     <div>
@@ -1335,7 +1877,7 @@ function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onShow
           <span style={{ color: C.chalk, fontWeight: 700, fontSize: 18 }}>{currentUser.name}</span>
           {isAdmin && <Shield size={15} color={C.gold} />}
         </div>
-        <div style={{ fontSize: 12, color: C.chalkDim }}>@{currentUser.username} · {currentUser.position} · {currentUser.team}{isAdmin ? ' · Administrador' : ''}</div>
+        <div style={{ fontSize: 12, color: C.chalkDim }}>@{currentUser.username} · {currentUser.number != null ? `#${currentUser.number} · ` : ''}{currentUser.position} · {currentUser.team}{isAdmin ? ' · Administrador' : ''}</div>
         {currentUser.email && <div style={{ fontSize: 11, color: C.chalkDim, marginTop: 2 }}>{currentUser.email}</div>}
       </div>
 
@@ -1350,6 +1892,12 @@ function PerfilView({ currentUser, isAdmin, onLogout, onEdit, onSettings, onShow
       {isAdmin && (
         <button onClick={onSettings} style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.05)', color: C.chalk, marginBottom: 10, cursor: 'pointer' }}>
           <Wallet size={16} color={C.chalkDim} /> Configurar valor da mensalidade
+        </button>
+      )}
+
+      {isAdmin && (
+        <button onClick={onPixSettings} style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.05)', color: C.chalk, marginBottom: 10, cursor: 'pointer' }}>
+          <QrCode size={16} color={C.chalkDim} /> Trocar a chave PIX
         </button>
       )}
 
@@ -1368,6 +1916,30 @@ function SettingsPanel({ config, onSave }) {
         <input style={inputStyle} inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} />
       </Field>
       <PrimaryButton onClick={() => onSave(Number(fee.replace(',', '.')) || 0)}>Salvar</PrimaryButton>
+    </div>
+  );
+}
+
+function PixSettingsPanel({ config, onSave }) {
+  const [key, setKey] = useState(config.pixKey || '');
+  const [error, setError] = useState('');
+
+  function submit() {
+    if (!key.trim()) { setError('Digite a chave PIX.'); return; }
+    setError('');
+    onSave(key.trim());
+  }
+
+  return (
+    <div>
+      <Field label="Chave PIX (celular, e-mail, CPF/CNPJ ou aleatória)">
+        <input style={inputStyle} value={key} onChange={(e) => setKey(e.target.value)} placeholder="Ex: 21999983445" autoCapitalize="none" />
+      </Field>
+      <div style={{ fontSize: 11, color: C.chalkDim, marginBottom: 14 }}>
+        Essa é a chave que vai receber as mensalidades pagas via PIX pelo app. Se for um número de celular com 10 ou 11 dígitos, o app formata automaticamente com o +55.
+      </div>
+      {error && <div style={{ color: C.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <PrimaryButton onClick={submit}>Salvar</PrimaryButton>
     </div>
   );
 }
