@@ -733,7 +733,9 @@ function PixModal({ amount, description, playerId, monthKey, email, pixKey, isPa
             {amount > 0 && (
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: C.gold, marginBottom: 2 }}>{fmtBRL(amount)}</div>
             )}
-            <div style={{ fontSize: 13, color: C.chalk, marginBottom: 2 }}>Chave PIX: <b>{pixKey || PIX_KEY_RAW}</b></div>
+            {!dynamic && (
+              <div style={{ fontSize: 13, color: C.chalk, marginBottom: 2 }}>Chave PIX: <b>{pixKey || PIX_KEY_RAW}</b></div>
+            )}
             <div style={{ fontSize: 12, color: C.chalkDim, marginBottom: 16 }}>Super Clássico · Rio de Janeiro</div>
 
             <div style={{ textAlign: 'left', fontSize: 11, color: C.chalkDim, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase' }}>Pix Copia e Cola</div>
