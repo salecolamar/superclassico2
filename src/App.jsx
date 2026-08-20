@@ -1226,8 +1226,7 @@ export default function App() {
   const confirmedVasco = data.players.filter((p) => p.team === 'Vasco' && attendanceArr.includes(p.id));
   const confirmedFla = data.players.filter((p) => p.team === 'Flamengo' && attendanceArr.includes(p.id));
   const confirmedResenha = data.players.filter((p) => p.position === 'Resenha' && attendanceArr.includes(p.id));
-  // cargo Resenha não entra na lista de jogadores
-  const filteredPlayers = data.players.filter((p) => p.position !== 'Resenha' && p.name.toLowerCase().includes(search.toLowerCase()));
+  const filteredPlayers = data.players.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="furao-shell" style={{ maxWidth: 420, margin: '0 auto', background: C.bgGrad, height: 844, borderRadius: 24, overflow: 'hidden', fontFamily: "'Inter',sans-serif", boxShadow: '0 20px 60px rgba(0,0,0,0.35)', border: `1px solid ${C.line}` }}>
@@ -1593,6 +1592,7 @@ function InicioView({ data, monthKey, monthLabel, nextMatch, attendanceArr, conf
 function JogadoresView({ players, search, setSearch, onOpen, onNew, isAdmin }) {
   const vasco = players.filter((p) => p.team === 'Vasco');
   const fla = players.filter((p) => p.team === 'Flamengo');
+  const resenha = players.filter((p) => p.position === 'Resenha');
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(245,241,230,0.06)', border: `1px solid ${C.line}`, borderRadius: 12, padding: '9px 12px', margin: '4px 0 14px' }}>
@@ -1600,11 +1600,12 @@ function JogadoresView({ players, search, setSearch, onOpen, onNew, isAdmin }) {
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar jogador…" style={{ background: 'none', border: 'none', outline: 'none', color: C.chalk, fontSize: 14, flex: 1 }} />
       </div>
 
-      {[['Vasco', vasco], ['Flamengo', fla]].map(([team, list]) => (
-        <div key={team} style={{ marginBottom: 18 }}>
+      {[['Vasco', vasco], ['Flamengo', fla], ['Resenha', resenha]].map(([label, list]) => (
+        list.length === 0 && label === 'Resenha' ? null :
+        <div key={label} style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            {React.createElement(TEAM_EMBLEM[team], { size: 20 })}
-            <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>{team}</span>
+            {TEAM_EMBLEM[label] ? React.createElement(TEAM_EMBLEM[label], { size: 20 }) : <Users size={20} color={C.chalkDim} />}
+            <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>{label}</span>
             <span style={{ fontSize: 11, color: C.chalkDim }}>({list.length})</span>
           </div>
           {list.length === 0 ? (
