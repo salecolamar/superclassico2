@@ -62,7 +62,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const [playerId, monthKey] = String(order.external_reference || '').split('|');
+    const [playerId, monthKey] = String(order.external_reference || '').split('_');
     if (!playerId || !monthKey) {
       console.error('external_reference inválido', order.external_reference);
       res.status(200).end();

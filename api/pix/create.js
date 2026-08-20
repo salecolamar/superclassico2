@@ -18,7 +18,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  const siteUrl = process.env.PUBLIC_SITE_URL || 'https://superclassico-icv2.vercel.app';
   const amountStr = Number(amount).toFixed(2);
 
   try {
@@ -32,7 +31,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         type: 'online',
         total_amount: amountStr,
-        external_reference: `${playerId}|${monthKey}`,
+        external_reference: `${playerId}_${monthKey}`,
         processing_mode: 'automatic',
         transactions: {
           payments: [
@@ -42,7 +41,6 @@ export default async function handler(req, res) {
             },
           ],
         },
-        notification_url: `${siteUrl}/api/pix/webhook`,
         description: (description || 'Mensalidade Super Clássico').slice(0, 250),
       }),
     });
@@ -50,7 +48,7 @@ export default async function handler(req, res) {
     const json = await mpRes.json();
     if (!mpRes.ok) {
       console.error('MP create order failed', mpRes.status, json);
-      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.', debug: json });
+      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.' });
       return;
     }
 
