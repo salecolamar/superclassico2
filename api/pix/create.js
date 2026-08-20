@@ -1,5 +1,37 @@
 // Cria uma cobrança PIX real via API de Orders do Mercado Pago.
 // Chamado pelo front-end (PixModal) quando um jogador vai pagar a mensalidade.
+
+const SANDBOX_TEST_EMAIL = process.env.MP_TEST_PAYER_EMAIL || 'test_user_3630145896@testuser.com';
+
+async function createOrder(accessToken, { amountStr, playerId, monthKey, description, payerEmail }) {
+  const mpRes = await fetch('https://api.mercadopago.com/v1/orders', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'X-Idempotency-Key': `${playerId}-${monthKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    },
+    body: JSON.stringify({
+      type: 'online',
+      total_amount: amountStr,
+      external_reference: `${playerId}_${monthKey}`,
+      processing_mode: 'automatic',
+      transactions: {
+        payments: [
+          {
+            amount: amountStr,
+            payment_method: { id: 'pix', type: 'bank_transfer' },
+          },
+        ],
+      },
+      payer: { email: payerEmail },
+      description: (description || 'Mensalidade Super Clássico').slice(0, 250),
+    }),
+  });
+  const json = await mpRes.json();
+  return { ok: mpRes.ok, status: mpRes.status, json };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -19,54 +51,33 @@ export default async function handler(req, res) {
   }
 
   const amountStr = Number(amount).toFixed(2);
-  // Sandbox (token de teste) só aceita e-mail de teste; produção usa o e-mail real.
-  const isTestToken = accessToken.trim().toUpperCase().startsWith('TEST');
-  const payerEmail = isTestToken
-    ? (process.env.MP_TEST_PAYER_EMAIL || 'test_user_3630145896@testuser.com')
-    : (email || `jogador-${playerId}@superclassico.app`);
+  const realEmail = email || `jogador-${playerId}@superclassico.app`;
 
   try {
-    const mpRes = await fetch('https://api.mercadopago.com/v1/orders', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Idempotency-Key': `${playerId}-${monthKey}-${Date.now()}`,
-      },
-      body: JSON.stringify({
-        type: 'online',
-        total_amount: amountStr,
-        external_reference: `${playerId}_${monthKey}`,
-        processing_mode: 'automatic',
-        transactions: {
-          payments: [
-            {
-              amount: amountStr,
-              payment_method: { id: 'pix', type: 'bank_transfer' },
-            },
-          ],
-        },
-        payer: { email: payerEmail },
-        description: (description || 'Mensalidade Super Clássico').slice(0, 250),
-      }),
-    });
+    let result = await createOrder(accessToken, { amountStr, playerId, monthKey, description, payerEmail: realEmail });
 
-    const json = await mpRes.json();
-    if (!mpRes.ok) {
-      console.error('MP create order failed', mpRes.status, json);
-      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.', debug: json, isTestToken, payerEmail });
+    // Conta ainda em modo sandbox: o Mercado Pago recusa e-mail "real" e pede
+    // um e-mail de conta de teste. Tenta de novo automaticamente com ele.
+    const needsSandboxEmail = !result.ok && (result.json?.errors || []).some((e) => e.code === 'invalid_email_for_sandbox');
+    if (needsSandboxEmail) {
+      result = await createOrder(accessToken, { amountStr, playerId, monthKey, description, payerEmail: SANDBOX_TEST_EMAIL });
+    }
+
+    if (!result.ok) {
+      console.error('MP create order failed', result.status, result.json);
+      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.' });
       return;
     }
 
-    const paymentMethod = json?.transactions?.payments?.[0]?.payment_method;
+    const paymentMethod = result.json?.transactions?.payments?.[0]?.payment_method;
     if (!paymentMethod?.qr_code) {
-      console.error('MP order without qr_code', json);
+      console.error('MP order without qr_code', result.json);
       res.status(502).json({ error: 'PIX gerado sem QR Code.' });
       return;
     }
 
     res.status(200).json({
-      orderId: json.id,
+      orderId: result.json.id,
       qrCode: paymentMethod.qr_code,
       qrCodeBase64: paymentMethod.qr_code_base64,
     });
