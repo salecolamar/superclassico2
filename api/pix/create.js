@@ -19,6 +19,11 @@ export default async function handler(req, res) {
   }
 
   const amountStr = Number(amount).toFixed(2);
+  // Sandbox (token de teste) só aceita e-mail de teste; produção usa o e-mail real.
+  const isTestToken = accessToken.startsWith('TEST-');
+  const payerEmail = isTestToken
+    ? `jogador-${playerId}@testuser.com`
+    : (email || `jogador-${playerId}@superclassico.app`);
 
   try {
     const mpRes = await fetch('https://api.mercadopago.com/v1/orders', {
@@ -41,7 +46,7 @@ export default async function handler(req, res) {
             },
           ],
         },
-        payer: { email: email || `jogador-${playerId}@superclassico.app` },
+        payer: { email: payerEmail },
         description: (description || 'Mensalidade Super Clássico').slice(0, 250),
       }),
     });
