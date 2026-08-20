@@ -78,7 +78,7 @@ function teamStyleOf(team) {
   return TEAM_STYLE[team] || TEAM_STYLE.Resenha;
 }
 
-const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, results: {}, config: { monthlyFee: 70, monthlyFeeResenha: 50, adminPin: null, pixKey: '21999983445' } };
+const DEFAULT_DATA = { players: [], attendance: {}, payments: {}, results: {}, config: { monthlyFee: 70, monthlyFeeResenha: 50, adminPin: null, pixKey: '21998186034' } };
 const STORAGE_KEY = 'furao-app-data';
 
 /* ---------------------------------------------------------
@@ -104,7 +104,7 @@ function FlamengoEmblem({ size = 40 }) { return <TeamBadge team="Flamengo" size=
 
 const TEAM_EMBLEM = { Vasco: VascoEmblem, Flamengo: FlamengoEmblem };
 
-const PIX_KEY_RAW = '21999983445';
+const PIX_KEY_RAW = '21998186034';
 // Campeão da temporada anterior — o futebol já existia antes deste app,
 // então esse título fica registrado manualmente aqui.
 const LAST_SEASON_CHAMPION = { year: new Date().getFullYear() - 1, team: 'Flamengo' };
@@ -2195,7 +2195,7 @@ function PixSettingsPanel({ config, onSave }) {
   return (
     <div>
       <Field label="Chave PIX (celular, e-mail, CPF/CNPJ ou aleatória)">
-        <input style={inputStyle} value={key} onChange={(e) => setKey(e.target.value)} placeholder="Ex: 21999983445" autoCapitalize="none" />
+        <input style={inputStyle} value={key} onChange={(e) => setKey(e.target.value)} placeholder="Ex: 21998186034" autoCapitalize="none" />
       </Field>
       <div style={{ fontSize: 11, color: C.chalkDim, marginBottom: 14 }}>
         Essa é a chave que vai receber as mensalidades pagas via PIX pelo app. Se for um número de celular com 10 ou 11 dígitos, o app formata automaticamente com o +55.
