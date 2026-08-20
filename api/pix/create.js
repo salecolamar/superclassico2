@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   // Sandbox (token de teste) só aceita e-mail de teste; produção usa o e-mail real.
   const isTestToken = accessToken.startsWith('TEST-');
   const payerEmail = isTestToken
-    ? `jogador-${playerId}@testuser.com`
+    ? (process.env.MP_TEST_PAYER_EMAIL || 'test_user_3630145896@testuser.com')
     : (email || `jogador-${playerId}@superclassico.app`);
 
   try {
