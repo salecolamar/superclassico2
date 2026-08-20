@@ -667,7 +667,7 @@ function PinPrompt({ onConfirm, label }) {
 /* ---------------------------------------------------------
    PIX MODAL
 --------------------------------------------------------- */
-function PixModal({ amount, description, playerId, monthKey, pixKey, isPaid, onClose }) {
+function PixModal({ amount, description, playerId, monthKey, email, pixKey, isPaid, onClose }) {
   const dynamic = !!(playerId && monthKey);
   const [order, setOrder] = useState(null);
   const [loadingOrder, setLoadingOrder] = useState(dynamic);
@@ -682,7 +682,7 @@ function PixModal({ amount, description, playerId, monthKey, pixKey, isPaid, onC
     fetch('/api/pix/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerId, monthKey, amount, description }),
+      body: JSON.stringify({ playerId, monthKey, amount, description, email }),
     })
       .then((r) => r.json())
       .then((json) => {
@@ -693,7 +693,7 @@ function PixModal({ amount, description, playerId, monthKey, pixKey, isPaid, onC
       .catch(() => { if (!cancelled) setOrderError('Não consegui gerar o PIX. Tente novamente.'); })
       .finally(() => { if (!cancelled) setLoadingOrder(false); });
     return () => { cancelled = true; };
-  }, [dynamic, playerId, monthKey, amount, description]);
+  }, [dynamic, playerId, monthKey, amount, description, email]);
 
   const staticPayload = useMemo(
     () => (dynamic ? null : buildPixPayload({ amount, description, txid: 'SUPERCLASSICO', pixKey })),
@@ -1332,7 +1332,7 @@ export default function App() {
                 monthOffset={monthOffset} setMonthOffset={setMonthOffset}
                 onPay={(amount, mLabel) => setPixModal({
                   amount, description: `Mensalidade ${mLabel} - ${currentUser.name}`,
-                  playerId: currentUser.id, monthKey,
+                  playerId: currentUser.id, monthKey, email: currentUser.email,
                 })}
               />
             )}
@@ -1412,7 +1412,7 @@ export default function App() {
       {pixModal && (
         <PixModal
           amount={pixModal.amount} description={pixModal.description}
-          playerId={pixModal.playerId} monthKey={pixModal.monthKey}
+          playerId={pixModal.playerId} monthKey={pixModal.monthKey} email={pixModal.email}
           pixKey={data.config.pixKey}
           isPaid={pixModal.playerId ? data.payments[pixModal.playerId]?.[pixModal.monthKey]?.paid === true : false}
           onClose={() => setPixModal(null)}

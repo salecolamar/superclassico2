@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { playerId, monthKey, amount, description } = req.body || {};
+  const { playerId, monthKey, amount, description, email } = req.body || {};
   if (!playerId || !monthKey || !amount || Number(amount) <= 0) {
     res.status(400).json({ error: 'Dados incompletos para gerar o PIX.' });
     return;
@@ -41,6 +41,7 @@ export default async function handler(req, res) {
             },
           ],
         },
+        payer: { email: email || `jogador-${playerId}@superclassico.app` },
         description: (description || 'Mensalidade Super Clássico').slice(0, 250),
       }),
     });
