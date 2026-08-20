@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     const json = await mpRes.json();
     if (!mpRes.ok) {
       console.error('MP create order failed', mpRes.status, json);
-      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.' });
+      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.', debug: json });
       return;
     }
 
