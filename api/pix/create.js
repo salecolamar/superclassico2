@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   const amountStr = Number(amount).toFixed(2);
   // Sandbox (token de teste) só aceita e-mail de teste; produção usa o e-mail real.
-  const isTestToken = accessToken.startsWith('TEST-');
+  const isTestToken = accessToken.trim().toUpperCase().startsWith('TEST');
   const payerEmail = isTestToken
     ? (process.env.MP_TEST_PAYER_EMAIL || 'test_user_3630145896@testuser.com')
     : (email || `jogador-${playerId}@superclassico.app`);
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     const json = await mpRes.json();
     if (!mpRes.ok) {
       console.error('MP create order failed', mpRes.status, json);
-      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.' });
+      res.status(502).json({ error: 'Falha ao gerar cobrança PIX no Mercado Pago.', debug: json, isTestToken, payerEmail });
       return;
     }
 
