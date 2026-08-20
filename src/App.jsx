@@ -667,47 +667,90 @@ function PinPrompt({ onConfirm, label }) {
 /* ---------------------------------------------------------
    PIX MODAL
 --------------------------------------------------------- */
-function PixModal({ amount, description, txid, pixKey, onClose, onConfirmPaid }) {
-  const payload = useMemo(() => buildPixPayload({ amount, description, txid, pixKey }), [amount, description, txid, pixKey]);
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(payload)}`;
+function PixModal({ amount, description, playerId, monthKey, pixKey, isPaid, onClose }) {
+  const dynamic = !!(playerId && monthKey);
+  const [order, setOrder] = useState(null);
+  const [loadingOrder, setLoadingOrder] = useState(dynamic);
+  const [orderError, setOrderError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [claimed, setClaimed] = useState(false);
+
+  useEffect(() => {
+    if (!dynamic) return undefined;
+    let cancelled = false;
+    setLoadingOrder(true);
+    setOrderError('');
+    fetch('/api/pix/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId, monthKey, amount, description }),
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json.error) { setOrderError(json.error); return; }
+        setOrder({ qrCode: json.qrCode, qrCodeBase64: json.qrCodeBase64 });
+      })
+      .catch(() => { if (!cancelled) setOrderError('Não consegui gerar o PIX. Tente novamente.'); })
+      .finally(() => { if (!cancelled) setLoadingOrder(false); });
+    return () => { cancelled = true; };
+  }, [dynamic, playerId, monthKey, amount, description]);
+
+  const staticPayload = useMemo(
+    () => (dynamic ? null : buildPixPayload({ amount, description, txid: 'SUPERCLASSICO', pixKey })),
+    [dynamic, amount, description, pixKey]
+  );
+  const payload = dynamic ? order?.qrCode : staticPayload;
+  const qrUrl = dynamic
+    ? (order?.qrCodeBase64 ? `data:image/png;base64,${order.qrCodeBase64}` : null)
+    : `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(staticPayload)}`;
+
+  if (dynamic && isPaid) {
+    return (
+      <Modal title="Pagamento confirmado" onClose={onClose}>
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <CheckCircle2 size={44} color={C.success} style={{ marginBottom: 12 }} />
+          <div style={{ color: C.chalk, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Pagamento recebido!</div>
+          <div style={{ color: C.chalkDim, fontSize: 13 }}>Seu status já mudou pra "Pago" automaticamente.</div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal title="Pagar com PIX" onClose={onClose}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ background: '#fff', borderRadius: 16, padding: 14, display: 'inline-block', marginBottom: 14 }}>
-          <img src={qrUrl} alt="QR Code PIX" width={220} height={220} style={{ display: 'block' }} />
-        </div>
-        {amount > 0 && (
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: C.gold, marginBottom: 2 }}>{fmtBRL(amount)}</div>
+        {dynamic && loadingOrder && (
+          <div style={{ padding: '40px 0', color: C.chalkDim, fontSize: 13 }}>Gerando cobrança PIX…</div>
         )}
-        <div style={{ fontSize: 13, color: C.chalk, marginBottom: 2 }}>Chave PIX: <b>{pixKey || PIX_KEY_RAW}</b></div>
-        <div style={{ fontSize: 12, color: C.chalkDim, marginBottom: 16 }}>Super Clássico · Rio de Janeiro</div>
-
-        <div style={{ textAlign: 'left', fontSize: 11, color: C.chalkDim, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase' }}>Pix Copia e Cola</div>
-        <div style={{ wordBreak: 'break-all', background: 'rgba(245,241,230,0.06)', border: `1px solid ${C.line}`, borderRadius: 10, padding: 10, fontSize: 11, color: C.chalkDim, fontFamily: 'monospace', marginBottom: 12, textAlign: 'left' }}>
-          {payload}
-        </div>
-        <button onClick={async () => { const ok = await copyText(payload); setCopied(ok); setTimeout(() => setCopied(false), 2000); }} style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.06)', color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10 }}>
-          {copied ? 'Código copiado!' : 'Copiar código PIX'}
-        </button>
-
-        {onConfirmPaid && (
-          claimed ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: C.success, fontSize: 13, fontWeight: 700, padding: '10px 0' }}>
-              <CheckCircle2 size={16} /> Administrador avisado!
+        {dynamic && !loadingOrder && orderError && (
+          <div style={{ padding: '20px 0', color: C.danger, fontSize: 13 }}>{orderError}</div>
+        )}
+        {(!dynamic || (!loadingOrder && !orderError && payload)) && (
+          <>
+            <div style={{ background: '#fff', borderRadius: 16, padding: 14, display: 'inline-block', marginBottom: 14 }}>
+              <img src={qrUrl} alt="QR Code PIX" width={220} height={220} style={{ display: 'block' }} />
             </div>
-          ) : (
-            <PrimaryButton onClick={() => { onConfirmPaid(); setClaimed(true); }}>
-              Já paguei
-            </PrimaryButton>
-          )
-        )}
-        {onConfirmPaid && !claimed && (
-          <div style={{ fontSize: 11, color: C.chalkDim, marginTop: 8 }}>
-            Toque aqui depois de fazer a transferência — o administrador confirma o recebimento e o status muda pra "Pago".
-          </div>
+            {amount > 0 && (
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: C.gold, marginBottom: 2 }}>{fmtBRL(amount)}</div>
+            )}
+            <div style={{ fontSize: 13, color: C.chalk, marginBottom: 2 }}>Chave PIX: <b>{pixKey || PIX_KEY_RAW}</b></div>
+            <div style={{ fontSize: 12, color: C.chalkDim, marginBottom: 16 }}>Super Clássico · Rio de Janeiro</div>
+
+            <div style={{ textAlign: 'left', fontSize: 11, color: C.chalkDim, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase' }}>Pix Copia e Cola</div>
+            <div style={{ wordBreak: 'break-all', background: 'rgba(245,241,230,0.06)', border: `1px solid ${C.line}`, borderRadius: 10, padding: 10, fontSize: 11, color: C.chalkDim, fontFamily: 'monospace', marginBottom: 12, textAlign: 'left' }}>
+              {payload}
+            </div>
+            <button onClick={async () => { const ok = await copyText(payload); setCopied(ok); setTimeout(() => setCopied(false), 2000); }} style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: `1px solid ${C.line}`, background: 'rgba(245,241,230,0.06)', color: C.chalk, fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10 }}>
+              {copied ? 'Código copiado!' : 'Copiar código PIX'}
+            </button>
+
+            {dynamic && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: C.chalkDim, fontSize: 12, padding: '6px 0' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: C.gold, boxShadow: `0 0 6px ${C.gold}` }} />
+                Aguardando pagamento — o status muda pra "Pago" sozinho assim que cair.
+              </div>
+            )}
+          </>
         )}
       </div>
     </Modal>
@@ -1165,15 +1208,6 @@ export default function App() {
     persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
   }
 
-  function claimPayment(playerId, mKey) {
-    const key = mKey || monthKey;
-    const current = data.payments[playerId]?.[key];
-    if (current?.paid) return;
-    const player = data.players.find((p) => p.id === playerId);
-    const entry = { paid: false, amount: feeFor(player, data.config), claimed: true, claimedAt: new Date().toISOString() };
-    persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
-  }
-
   function updateFee(newFee, newFeeResenha) {
     persist({ ...data, config: { ...data.config, monthlyFee: newFee, monthlyFeeResenha: newFeeResenha } });
   }
@@ -1298,9 +1332,7 @@ export default function App() {
                 monthOffset={monthOffset} setMonthOffset={setMonthOffset}
                 onPay={(amount, mLabel) => setPixModal({
                   amount, description: `Mensalidade ${mLabel} - ${currentUser.name}`,
-                  txid: `SUPERCLASSICO${monthKeyFor(new Date()).replace('-', '')}`,
-                  pixKey: data.config.pixKey,
-                  onConfirmPaid: () => claimPayment(currentUser.id, monthKey),
+                  playerId: currentUser.id, monthKey,
                 })}
               />
             )}
@@ -1311,7 +1343,7 @@ export default function App() {
                 onEdit={() => setEditingPlayer(currentUser)}
                 onSettings={() => setShowSettings(true)}
                 onPixSettings={() => setShowPixSettings(true)}
-                onShowPix={() => setPixModal({ amount: 0, description: `Contribuição - ${currentUser.name}`, txid: 'SUPERCLASSICO', pixKey: data.config.pixKey })}
+                onShowPix={() => setPixModal({ amount: 0, description: `Contribuição - ${currentUser.name}` })}
               />
             )}
           </div>
@@ -1378,7 +1410,13 @@ export default function App() {
       )}
 
       {pixModal && (
-        <PixModal amount={pixModal.amount} description={pixModal.description} txid={pixModal.txid} pixKey={pixModal.pixKey} onConfirmPaid={pixModal.onConfirmPaid} onClose={() => setPixModal(null)} />
+        <PixModal
+          amount={pixModal.amount} description={pixModal.description}
+          playerId={pixModal.playerId} monthKey={pixModal.monthKey}
+          pixKey={data.config.pixKey}
+          isPaid={pixModal.playerId ? data.payments[pixModal.playerId]?.[pixModal.monthKey]?.paid === true : false}
+          onClose={() => setPixModal(null)}
+        />
       )}
 
       {resultModal && (
