@@ -70,7 +70,7 @@ export default async function handler(req, res) {
     }
 
     const payments = order?.transactions?.payments || [];
-    const approvedPayment = payments.find((p) => p.status === 'approved');
+    const approvedPayment = payments.find((p) => p.status === 'processed' && p.status_detail === 'accredited');
     if (!approvedPayment) {
       await debugLog({ step: 'no_approved_payment', dataId, orderStatus: order.status, externalReference: order.external_reference, paymentsStatus: payments.map((p) => p.status) });
       res.status(200).end();
