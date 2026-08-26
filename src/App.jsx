@@ -1622,6 +1622,8 @@ function InicioView({ data, monthKey, monthLabel, nextMatch, attendanceArr, conf
           </div>
         </div>
       </div>
+
+      <InstallAppButton variant="banner" />
     </div>
   );
 }
