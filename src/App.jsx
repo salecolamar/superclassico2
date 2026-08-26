@@ -1894,19 +1894,6 @@ function PresencaView({ nextMatch, data, attendanceArr, confirmedVasco, confirme
 /* ---------------------------------------------------------
    PLACAR — vitórias do mês e resultado de cada partida
 --------------------------------------------------------- */
-function getMonthTopScorers(results, monthKey) {
-  const tally = {};
-  Object.entries(results || {}).forEach(([matchKey, r]) => {
-    if (!matchKey.startsWith(monthKey)) return;
-    (r.scorers || []).forEach((s) => {
-      const key = `${s.name.trim().toLowerCase()}|${s.team}`;
-      if (!tally[key]) tally[key] = { name: s.name.trim(), team: s.team, goals: 0 };
-      tally[key].goals += Number(s.goals) || 0;
-    });
-  });
-  return Object.values(tally).sort((a, b) => b.goals - a.goals);
-}
-
 function getSeasonTopScorers(results) {
   const tally = {};
   Object.values(results || {}).forEach((r) => {
@@ -1925,22 +1912,19 @@ function getSeasonTopScorers(results) {
 function PlacarView({ data, isAdmin, onOpenResult }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [tab, setTab] = useState('vitorias');
-  const [scorersScope, setScorersScope] = useState('mes');
   const monthDate = useMemo(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + monthOffset); return d; }, [monthOffset]);
   const monthKey = monthKeyFor(monthDate);
   const monthLabel = capitalize(monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }));
   const champion = getMonthChampion(data.results, monthKey);
-  const monthTopScorers = useMemo(() => getMonthTopScorers(data.results, monthKey), [data.results, monthKey]);
-  const seasonTopScorers = useMemo(() => getSeasonTopScorers(data.results), [data.results]);
-  const topScorers = scorersScope === 'temporada' ? seasonTopScorers : monthTopScorers;
+  const topScorers = useMemo(() => getSeasonTopScorers(data.results), [data.results]);
   const wednesdays = useMemo(() => getWednesdaysInMonth(monthDate.getFullYear(), monthDate.getMonth()), [monthDate]);
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
   return (
     <div>
-      {tab === 'artilharia' && scorersScope === 'temporada' ? (
+      {tab === 'artilharia' ? (
         <div style={{ textAlign: 'center', marginBottom: 14 }}>
-          <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 16, color: C.chalk }}>Temporada {monthDate.getFullYear()}</span>
+          <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 16, color: C.chalk }}>Temporada {new Date().getFullYear()}</span>
         </div>
       ) : (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -2003,30 +1987,9 @@ function PlacarView({ data, isAdmin, onOpenResult }) {
 
       {tab === 'artilharia' && (
       <div style={{ marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: C.chalkDim, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
-            Artilharia {scorersScope === 'temporada' ? 'da temporada' : 'do mês'}
-          </div>
-          <div style={{ display: 'flex', gap: 4, background: C.cardAlt, borderRadius: 8, padding: 3 }}>
-            {[['mes', 'Mês'], ['temporada', 'Temporada']].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setScorersScope(key)}
-                style={{
-                  padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                  background: scorersScope === key ? C.green : 'transparent',
-                  color: scorersScope === key ? '#052015' : C.chalkDim,
-                  fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 11,
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
         {topScorers.length === 0 ? (
           <div style={{ fontSize: 13, color: C.chalkDim, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, textAlign: 'center' }}>
-            {scorersScope === 'temporada' ? 'Nenhum gol registrado ainda.' : 'Nenhum gol registrado neste mês ainda.'}
+            Nenhum gol registrado ainda.
           </div>
         ) : (
           <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, overflow: 'hidden' }}>
