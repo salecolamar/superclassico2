@@ -1206,7 +1206,7 @@ export default function App() {
     const current = data.payments[playerId]?.[key];
     const paid = !(current?.paid);
     const player = data.players.find((p) => p.id === playerId);
-    const entry = { paid, amount: feeFor(player, data.config), paidAt: paid ? new Date().toISOString() : null, claimed: paid ? current?.claimed : false, claimedAt: current?.claimedAt || null };
+    const entry = { paid, amount: feeFor(player, data.config), paidAt: paid ? new Date().toISOString() : null, claimed: paid ? !!current?.claimed : false, claimedAt: current?.claimedAt || null };
     persist({ ...data, payments: { ...data.payments, [playerId]: { ...(data.payments[playerId] || {}), [key]: entry } } });
   }
 
