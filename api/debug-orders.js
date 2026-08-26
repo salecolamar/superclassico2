@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   const params = new URLSearchParams({
     begin_date: begin.toISOString(),
     end_date: now.toISOString(),
-    sort_by: 'date_created',
+    sort_by: 'created_date',
     sort_order: 'desc',
     page_size: '20',
   });
