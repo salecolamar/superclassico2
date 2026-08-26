@@ -2039,24 +2039,42 @@ function FinanceiroView({ data, monthKey, monthLabel, monthOffset, setMonthOffse
 
       {players.length === 0 ? (
         <div style={{ fontSize: 13, color: C.chalkDim, marginTop: 12 }}>Cadastre jogadores para começar a controlar o financeiro.</div>
-      ) : players.map((p) => {
-        const entry = data.payments[p.id]?.[monthKey];
-        const paid = entry?.paid;
-        const claimed = entry?.claimed && !paid;
+      ) : [
+        ['Vasco', players.filter((p) => p.team === 'Vasco')],
+        ['Flamengo', players.filter((p) => p.team === 'Flamengo')],
+        ['Resenha', players.filter((p) => p.position === 'Resenha')],
+      ].map(([label, list]) => {
+        if (list.length === 0) return null;
+        const groupTotal = list.reduce((acc, p) => acc + (data.payments[p.id]?.[monthKey]?.paid ? Number(data.payments[p.id][monthKey].amount || 0) : 0), 0);
         return (
-          <div key={p.id} style={{ borderBottom: `1px solid ${C.line}` }}>
-            <PlayerRow
-              player={p}
-              onClick={() => togglePayment(p.id, monthKey)}
-              right={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: paid ? C.success : claimed ? C.gold : C.chalkDim, fontWeight: 700 }}>
-                    {paid ? 'Pago' : claimed ? 'Aguardando confirmação' : 'Pendente'}
-                  </span>
-                  {paid ? <CheckCircle2 size={18} color={C.success} /> : claimed ? <Clock size={18} color={C.gold} /> : <Circle size={18} color={C.chalkDim} />}
+          <div key={label} style={{ marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              {TEAM_EMBLEM[label] ? React.createElement(TEAM_EMBLEM[label], { size: 20 }) : <Users size={20} color={C.chalkDim} />}
+              <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 14, color: C.chalk }}>{label}</span>
+              <span style={{ fontSize: 11, color: C.chalkDim }}>({list.length})</span>
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: C.gold, fontWeight: 700 }}>{fmtBRL(groupTotal)}</span>
+            </div>
+            {list.map((p) => {
+              const entry = data.payments[p.id]?.[monthKey];
+              const paid = entry?.paid;
+              const claimed = entry?.claimed && !paid;
+              return (
+                <div key={p.id} style={{ borderBottom: `1px solid ${C.line}` }}>
+                  <PlayerRow
+                    player={p}
+                    onClick={() => togglePayment(p.id, monthKey)}
+                    right={
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: paid ? C.success : claimed ? C.gold : C.chalkDim, fontWeight: 700 }}>
+                          {paid ? 'Pago' : claimed ? 'Aguardando confirmação' : 'Pendente'}
+                        </span>
+                        {paid ? <CheckCircle2 size={18} color={C.success} /> : claimed ? <Clock size={18} color={C.gold} /> : <Circle size={18} color={C.chalkDim} />}
+                      </div>
+                    }
+                  />
                 </div>
-              }
-            />
+              );
+            })}
           </div>
         );
       })}
