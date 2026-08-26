@@ -3,8 +3,19 @@
 // Pago (nunca confia só no corpo da notificação) e marca a mensalidade como paga.
 import crypto from 'node:crypto';
 import { db, auth } from '../../src/firebase.js';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
+
+// TEMPORÁRIO — grava um rastro de cada chamada num doc separado, só pra diagnóstico.
+async function debugLog(entry) {
+  try {
+    await signInAnonymously(auth);
+    await setDoc(doc(db, 'furao-fc', 'webhook-debug'), {
+      at: new Date().toISOString(),
+      ...entry,
+    });
+  } catch (e) { /* ignore */ }
+}
 
 function isValidSignature(dataId, xRequestId, xSignature, secret) {
   if (!dataId || !xSignature || !secret) return false;
@@ -28,6 +39,7 @@ function isValidSignature(dataId, xRequestId, xSignature, secret) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
+    await debugLog({ step: 'non_post_method', method: req.method });
     res.status(200).end();
     return;
   }
@@ -38,8 +50,10 @@ export default async function handler(req, res) {
     const xSignature = req.headers['x-signature'];
     const secret = process.env.MP_WEBHOOK_SECRET;
 
-    if (!isValidSignature(dataId, xRequestId, xSignature, secret)) {
+    const sigValid = isValidSignature(dataId, xRequestId, xSignature, secret);
+    if (!sigValid) {
       console.warn('Assinatura de webhook inválida ou ausente');
+      await debugLog({ step: 'signature_invalid', dataId, xRequestId, xSignature, hasSecret: !!secret });
       res.status(200).end();
       return;
     }
@@ -51,6 +65,7 @@ export default async function handler(req, res) {
     const order = await orderRes.json();
     if (!orderRes.ok) {
       console.error('Falha ao buscar order no Mercado Pago', orderRes.status, order);
+      await debugLog({ step: 'order_fetch_failed', dataId, status: orderRes.status, order });
       res.status(200).end();
       return;
     }
@@ -58,6 +73,7 @@ export default async function handler(req, res) {
     const payments = order?.transactions?.payments || [];
     const approvedPayment = payments.find((p) => p.status === 'approved');
     if (!approvedPayment) {
+      await debugLog({ step: 'signature_ok_no_approved_payment', dataId, orderStatus: order.status, paymentsStatus: payments.map((p) => p.status) });
       res.status(200).end();
       return;
     }
@@ -65,6 +81,7 @@ export default async function handler(req, res) {
     const [playerId, monthKey] = String(order.external_reference || '').split('_');
     if (!playerId || !monthKey) {
       console.error('external_reference inválido', order.external_reference);
+      await debugLog({ step: 'bad_external_reference', dataId, externalReference: order.external_reference });
       res.status(200).end();
       return;
     }
@@ -83,9 +100,11 @@ export default async function handler(req, res) {
       },
     });
 
+    await debugLog({ step: 'success', dataId, playerId, monthKey, amount: approvedPayment.amount });
     res.status(200).end();
   } catch (err) {
     console.error('pix/webhook error', err);
+    await debugLog({ step: 'exception', error: String(err) });
     res.status(200).end();
   }
 }
