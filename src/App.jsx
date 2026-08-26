@@ -365,6 +365,73 @@ function IOSInstallHelp() {
   );
 }
 
+function AndroidInstallHelp() {
+  return (
+    <div style={{ fontSize: 13.5, color: C.chalk, lineHeight: 1.7 }}>
+      <div style={{ marginBottom: 10 }}>No Android a instalação é feita direto pelo Chrome:</div>
+      <ol style={{ paddingLeft: 20, margin: '0 0 14px' }}>
+        <li>Toque nos <b>três pontinhos (⋮)</b> no canto superior direito do Chrome.</li>
+        <li>Escolha <b>"Instalar app"</b> ou <b>"Adicionar à tela inicial"</b>.</li>
+        <li>Toque em <b>"Instalar"</b> para confirmar.</li>
+      </ol>
+      <div style={{ fontSize: 11.5, color: C.chalkDim }}>
+        Se o Chrome já mostrou um aviso pra instalar sozinho, pode usar ele direto — dá no mesmo.
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   DOIS BOTÕES DE DOWNLOAD (Android/iOS) — sempre visíveis,
+   independente do navegador liberar o prompt automático
+--------------------------------------------------------- */
+function PlatformDownloadButtons() {
+  const { canInstall, promptInstall, isStandalone } = useInstallPrompt();
+  const [help, setHelp] = useState(null); // 'android' | 'ios' | null
+
+  if (isStandalone) return null;
+
+  async function handleAndroidClick() {
+    if (canInstall) {
+      const accepted = await promptInstall();
+      if (!accepted) setHelp('android');
+    } else {
+      setHelp('android');
+    }
+  }
+
+  const btnStyle = {
+    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    background: 'rgba(23,232,143,0.08)', border: `1px solid ${C.greenDim}`,
+    borderRadius: 10, padding: '12px 10px', color: C.green,
+    fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13,
+    letterSpacing: 0.3, cursor: 'pointer',
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+        <button onClick={handleAndroidClick} style={btnStyle}>
+          <Smartphone size={15} /> Baixar Android
+        </button>
+        <button onClick={() => setHelp('ios')} style={btnStyle}>
+          <Smartphone size={15} /> Baixar iPhone
+        </button>
+      </div>
+      {help === 'android' && (
+        <Modal title="Instalar no Android" onClose={() => setHelp(null)}>
+          <AndroidInstallHelp />
+        </Modal>
+      )}
+      {help === 'ios' && (
+        <Modal title="Adicionar à Tela de Início" onClose={() => setHelp(null)}>
+          <IOSInstallHelp />
+        </Modal>
+      )}
+    </>
+  );
+}
+
 function InstallAppButton({ variant = 'menu' }) {
   const { canInstall, promptInstall, isIOS, isStandalone } = useInstallPrompt();
   const [showIOSHelp, setShowIOSHelp] = useState(false);
@@ -1504,7 +1571,7 @@ function LoginScreen({ players, results, onLogin, onNew }) {
         + Cadastrar novo jogador
       </button>
 
-      <InstallAppButton variant="banner" />
+      <PlatformDownloadButtons />
     </div>
   );
 }
