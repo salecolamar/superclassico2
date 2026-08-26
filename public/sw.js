@@ -1,4 +1,4 @@
-const CACHE = 'furao-fc-v1';
+const CACHE = 'furao-fc-1787712424577';
 const APP_SHELL = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
