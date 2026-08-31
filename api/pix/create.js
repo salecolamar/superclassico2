@@ -20,7 +20,7 @@ async function createOrder(accessToken, { amountStr, playerId, monthKey, descrip
         payments: [
           {
             amount: amountStr,
-            payment_method: { id: 'pix', type: 'bank_transfer' },
+            payment_method: { id: 'pix', type: 'bank_transfer', statement_descriptor: 'SUPER CLASSICO' },
           },
         ],
       },
