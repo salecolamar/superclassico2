@@ -1180,7 +1180,7 @@ export default function App() {
 
   const nextMatch = useMemo(() => getNextMatch(), []);
   const nextMatchKey = matchKeyFor(nextMatch);
-  const monthDate = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + monthOffset); return d; }, [monthOffset]);
+  const monthDate = useMemo(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + monthOffset); return d; }, [monthOffset]);
   const monthKey = monthKeyFor(monthDate);
   const monthLabel = capitalize(monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }));
 
